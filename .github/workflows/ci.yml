@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      # `mise install` (in mise-action) runs `setup`, which installs Chromium; CI also needs its system libraries.
+      - run: mise exec -- npx playwright install --with-deps chromium
+      - run: mise run check

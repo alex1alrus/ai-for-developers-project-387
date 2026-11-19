@@ -1,0 +1,85 @@
+[settings]
+experimental = true
+
+[tools]
+hk = "2.13.0"
+node = "24.22.3"
+pitchfork = "2.35.0"
+
+[hooks]
+postinstall = { task = "setup" }
+
+[tasks.deps]
+description = "Install npm dependencies when package-lock.json changes"
+run = "npm ci"
+sources = ["package-lock.json"]
+outputs = ["node_modules/.package-lock.json"]
+
+[tasks.setup]
+description = "Install npm dependencies, Chromium for Playwright and git hooks"
+depends = ["deps"]
+run = ["npx playwright install chromium", "hk install --mise"]
+
+[tasks.dev]
+depends = ["deps"]
+description = "Start API (3000) and web (5173) daemons"
+run = "mise daemons start api web"
+
+[tasks.gen]
+depends = ["deps"]
+description = "Generate OpenAPI, frontend SDK and server types from spec/main.tsp"
+run = ["npx tsp compile spec/main.tsp", "npx openapi-ts"]
+
+# Fails when generated files differ from the contract, including new untracked files.
+# Only the worktree column of `git status --porcelain` counts, so staged files pass in pre-commit.
+[tasks."gen:check"]
+depends = ["gen"]
+description = "Fail if generated files are out of date"
+run = '''
+drift=$(git status --porcelain -- spec/generated src/api server/api | grep '^.[^ ]' || true)
+if [ -n "$drift" ]; then
+  echo "Generated files are out of date, run 'mise run gen' and commit:"
+  echo "$drift"
+  exit 1
+fi
+'''
+
+# wait_for: in `check`, read generated files only after gen:check has rewritten them.
+[tasks.lint]
+depends = ["deps"]
+wait_for = ["gen:check"]
+run = "npm run lint"
+
+[tasks.typecheck]
+depends = ["deps"]
+wait_for = ["gen:check"]
+run = "npm run typecheck"
+
+[tasks.test]
+depends = ["deps"]
+wait_for = ["gen:check"]
+run = "npm test"
+
+[tasks.build]
+depends = ["deps"]
+wait_for = ["gen:check"]
+run = "npm run build"
+
+# The Playwright webServer builds `dist/` itself; wait for `build` so the two builds do not write it at once.
+[tasks.e2e]
+depends = ["deps"]
+wait_for = ["gen:check", "build"]
+description = "Browser scenario in Chromium against the production server on port 3100"
+run = "npx playwright test"
+
+[tasks.check]
+description = "All checks: local, git hooks and CI"
+depends = ["gen:check", "lint", "typecheck", "test", "build", "e2e"]
+
+[daemons.api]
+run = "exec npm run dev:server"
+ready_port = 3000
+
+[daemons.web]
+run = "exec npm run dev:web"
+ready_port = 5173

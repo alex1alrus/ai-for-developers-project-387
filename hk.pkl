@@ -1,0 +1,7 @@
+amends "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Config.pkl"
+
+steps {
+  ["check"] {
+    check = "mise run check"
+  }
+}
