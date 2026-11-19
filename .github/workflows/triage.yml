@@ -35,7 +35,9 @@ jobs:
           model: opencode/gpt-6.2-sol
           share: false
           prompt: |
-            Выполни первичный триаж только что открытого issue по скиллу triage
+            Выполни первичный триаж только что открытого issue #${{ github.event.issue.number }}
+            (`gh issue view ${{ github.event.issue.number }} --json number,title,body,labels,comments`)
+            по скиллу triage
             (`.claude/skills/triage/SKILL.md`). Сверь обращение с тем, как уже работает
             приложение, и учти его правила, ограничения и принятые решения.
             Поставь метки категории и состояния по правилам скилла и
