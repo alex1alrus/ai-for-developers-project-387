@@ -1,0 +1,46 @@
+name: triage
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    if: >-
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) &&
+      github.event.issue.user.type == 'User' &&
+      !contains(github.event.issue.labels.*.name, 'ready-for-agent')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      # Share the group with opencode.yml so manual and automatic triage do not overlap.
+      group: opencode-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/gpt-6.2-sol
+          share: false
+          prompt: |
+            Выполни первичный триаж только что открытого issue по скиллу triage
+            (`.claude/skills/triage/SKILL.md`). Сверь обращение с тем, как уже работает
+            приложение, и учти его правила, ограничения и принятые решения.
+            Поставь метки категории и состояния по правилам скилла и
+            `docs/agents/triage-labels.md`. Если данных не хватает, поставь `needs-info`
+            и задай автору конкретные вопросы в комментарии. Если нужно решение
+            мейнтейнера, оставь `needs-triage` и опиши, что нужно решить.
+            Работай только с метками и комментариями этого issue. Не меняй файлы
+            репозитория, не реализуй задачу и не создавай коммиты или PR.

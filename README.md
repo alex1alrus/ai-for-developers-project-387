@@ -149,6 +149,7 @@ scripts/smoke.sh http://localhost:8080                   # сценарий го
 | `release-please.yml` | `push` в `main` | release-PR с changelog и версией по Conventional Commits | PR от release-please, Releases |
 | `hexlet-check.yml` | `push` | автоматические тесты Хекслета | вкладка Actions |
 | `opencode.yml` | `issue_comment`, `pull_request_review_comment` (`types: [created]`) | агент OpenCode по команде в issue или PR | ответ комментарием от `opencode-agent`, прогон в Actions |
+| `triage.yml` | `issues` (`types: [opened]`) | автоматический первичный триаж новых обращений | метки и комментарии в issue, прогон в Actions |
 
 ### Агент OpenCode (`opencode.yml`)
 
@@ -165,6 +166,15 @@ scripts/smoke.sh http://localhost:8080                   # сценарий го
 - **Скиллы на раннере:** проектные скиллы лежат в `.claude/skills/`, OpenCode читает этот путь сам: `ask-matt`, `code-review`, `codebase-design`, `diagnosing-bugs`, `domain-modeling`, `grill-me`, `grill-with-docs`, `grilling`, `handoff`, `implement`, `implement-spec`, `improve-codebase-architecture`, `pr`, `prototype`, `research`, `retro`, `setup-matt-pocock-skills`, `tdd`, `to-spec`, `to-tickets`, `triage`, `wayfinder`, `wizard`. Ещё доступен встроенный `customize-opencode`. Настройки трекера (`docs/agents/`) и правила (`AGENTS.md`) приходят с checkout.
 - **Проверки:** команда `mise run check` — проверка генерации (`gen:check`), линтер, типы, тесты, сборка и браузерный сценарий; тот же прогон в pre-commit хуке и в CI.
 - **Остановка:** Actions → прогон → Cancel workflow останавливает текущий запуск. Actions → opencode → Disable workflow отключает будущие. Ключ можно отозвать в консоли opencode.ai.
+- **Файлы воркфлоу агент не пушит:** у приложения `opencode-agent` нет права `workflows`, GitHub отклоняет push с изменениями в `.github/workflows/`. Такие правки агент готовит, а коммитит человек.
+
+### Автотриаж новых обращений (`triage.yml`)
+
+OpenCode запускается при открытии issue пользователем с ролью `OWNER`, `MEMBER` или `COLLABORATOR`. Issue от ботов и issue, уже открытые с меткой [`ready-for-agent`](docs/agents/triage-labels.md), пропускаются. Эту метку ставят `to-spec` и `to-tickets` при создании готовых задач.
+
+Агент разбирает обращение по скиллу `triage`, сверяется с текущим поведением приложения и ставит метки категории и состояния. Если данных не хватает, он ставит `needs-info` и задаёт автору конкретные вопросы в issue. Код приложения не меняется. Для повторного разбора после ответов можно вызвать `/oc` в обсуждении.
+
+Воркфлоу использует те же модель, права и `GH_TOKEN`, что и `opencode.yml`. Лимит — 30 минут; общая группа `concurrency` по номеру issue не даёт автоматическому и ручному запускам работать над одним обращением одновременно.
 
 ---
 
