@@ -62,7 +62,7 @@ A bare `#N` in old commits and `CHANGELOG.md` refers to the first repo, not this
 
 ### In GitHub Actions
 
-`.github/workflows/opencode.yml` runs OpenCode on `/oc` or `/opencode` from a trusted collaborator; see `README.md` → «Агент OpenCode». There `gh` uses a read-only `GH_TOKEN`: read issues and PRs with `gh`, but comments, commits and PRs go through OpenCode itself (GitHub App `opencode-agent`).
+`.github/workflows/opencode.yml` runs OpenCode on `/oc` or `/opencode` from a trusted collaborator; see `README.md` → «Агент OpenCode». There `gh` uses `GH_TOKEN` with `issues: write`: read, comment, label and create issues with `gh` (shown as `github-actions[bot]`). Code and PRs are read-only for it; commits and PRs go through OpenCode itself (GitHub App `opencode-agent`).
 
 ### Triage labels
 
