@@ -23,8 +23,8 @@ jobs:
     permissions:
       contents: read # checkout
       id-token: write # OIDC exchange for the opencode-agent GitHub App token; the agent comments and pushes as the App
-      issues: read # GH_TOKEN below: the agent reads issues with gh (docs/agents/issue-tracker.md)
-      pull-requests: read # same, for PRs
+      issues: write # GH_TOKEN below: triage, to-spec and to-tickets label and create issues with gh (docs/agents/issue-tracker.md)
+      pull-requests: read # GH_TOKEN reads PRs with gh; PRs are opened by the App
     steps:
       - uses: actions/checkout@v7
         with:
@@ -34,7 +34,7 @@ jobs:
       - uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          # Read-only token for gh in the agent's shell; the App token is not exposed to it.
+          # Token for gh in the agent's shell (the App token is not exposed to it): issues only, read-only code and PRs.
           GH_TOKEN: ${{ github.token }}
         with:
           model: opencode/big-pickle
