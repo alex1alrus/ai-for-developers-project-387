@@ -60,6 +60,10 @@ The app was built in `alex1alrus/ai-for-developers-project-386` and moved here a
 
 A bare `#N` in old commits and `CHANGELOG.md` refers to the first repo, not this one.
 
+### In GitHub Actions
+
+`.github/workflows/opencode.yml` runs OpenCode on `/oc` or `/opencode` from a trusted collaborator; see `README.md` → «Агент OpenCode». There `gh` uses a read-only `GH_TOKEN`: read issues and PRs with `gh`, but comments, commits and PRs go through OpenCode itself (GitHub App `opencode-agent`).
+
 ### Triage labels
 
 Default labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
