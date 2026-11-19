@@ -37,6 +37,6 @@ jobs:
           # Token for gh in the agent's shell (the App token is not exposed to it): issues only, read-only code and PRs.
           GH_TOKEN: ${{ github.token }}
         with:
-          model: opencode/big-pickle
+          model: opencode/gpt-6.2-sol
           mentions: /opencode,/oc
           share: false
