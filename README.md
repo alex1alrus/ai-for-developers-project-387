@@ -156,7 +156,7 @@ scripts/smoke.sh http://localhost:8080                   # сценарий го
 
 - **Команды (`mentions`):** `/opencode`, `/oc` — набор OpenCode по умолчанию, записан явно.
 - **Кто может вызвать:** автор комментария с `author_association` `OWNER`, `MEMBER` или `COLLABORATOR`. Комментарии ботов игнорируются, поэтому агент не отвечает сам себе. `opencode github run` дополнительно проверяет у автора права `write` или `admin`. `pull_request_target` не используется, чужие fork ключ модели не получают.
-- **Модель:** `opencode/big-pickle` — бесплатная модель OpenCode Zen. Ключ — секрет `OPENCODE_API_KEY`. Для тяжёлых задач (`implement-spec`) модель меняется одной строкой `model`.
+- **Модель:** `opencode/big-pickle` — бесплатная модель OpenCode Zen. Ключ — секрет `OPENCODE_API_KEY`. Для тяжёлых задач (`implement-spec`) модель меняется одной строкой `model`. Служебная модель для заголовков сессий задана в `opencode.json` (`small_model`), тоже бесплатная: модель OpenCode по умолчанию для этой роли платная и без баланса падает с `Insufficient balance`.
 - **`share: false`:** сессии агента не публикуются. Репозиторий открытый, а сессия содержит контекст задачи. Результат виден в комментарии и в логе прогона.
 - **Права:** стандартная авторизация OpenCode. `contents: read` и `id-token: write`: Actions обменивает OIDC-токен на токен GitHub App `opencode-agent`, и агент комментирует и пушит правами приложения. У checkout `persist-credentials: false`.
 - **Отличие от стандартной настройки:** добавлены `issues: read`, `pull-requests: read` и `GH_TOKEN: ${{ github.token }}`. `opencode github run` не передаёт токен приложения в shell агента, а скиллы читают трекер через `gh` (`docs/agents/issue-tracker.md`). Этот токен только читает, запись идёт через приложение.
