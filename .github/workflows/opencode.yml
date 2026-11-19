@@ -1,0 +1,42 @@
+name: opencode
+
+# Interactive agent: a trusted collaborator calls it with /oc or /opencode
+# in an issue / PR discussion or on a line of a PR diff.
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  opencode:
+    # Run only for a command from a trusted human. Forks and outsiders never reach the model key.
+    if: >-
+      (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode')) &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      github.event.comment.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: opencode-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read # checkout
+      id-token: write # OIDC exchange for the opencode-agent GitHub App token; the agent comments and pushes as the App
+      issues: read # GH_TOKEN below: the agent reads issues with gh (docs/agents/issue-tracker.md)
+      pull-requests: read # same, for PRs
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          # Read-only token for gh in the agent's shell; the App token is not exposed to it.
+          GH_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/big-pickle
+          mentions: /opencode,/oc
+          share: false

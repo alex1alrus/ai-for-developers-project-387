@@ -141,6 +141,29 @@ scripts/smoke.sh http://localhost:8080                   # сценарий го
 3. Запустите `claude` в корне репозитория и одобрите проектный MCP-сервер `render`. Проверка: `/mcp`.
 4. Выберите workspace в Render и попросите агента создать веб-сервис из этого репозитория с runtime Docker.
 
+## Воркфлоу GitHub Actions
+
+| Воркфлоу | Событие | Назначение | Где результат |
+| --- | --- | --- | --- |
+| `ci.yml` | `push` в любую ветку | `mise run check`: генерация, линтер, типы, тесты, сборка, e2e | вкладка Actions, статус коммита |
+| `release-please.yml` | `push` в `main` | release-PR с changelog и версией по Conventional Commits | PR от release-please, Releases |
+| `hexlet-check.yml` | `push` | автоматические тесты Хекслета | вкладка Actions |
+| `opencode.yml` | `issue_comment`, `pull_request_review_comment` (`types: [created]`) | агент OpenCode по команде в issue или PR | ответ комментарием от `opencode-agent`, прогон в Actions |
+
+### Агент OpenCode (`opencode.yml`)
+
+Агент отвечает на команды в обсуждении issue или PR и в комментарии к строке diff. Например: `/oc explain this issue`, `/oc запусти скилл to-spec по обсуждению этого issue`.
+
+- **Команды (`mentions`):** `/opencode`, `/oc` — набор OpenCode по умолчанию, записан явно.
+- **Кто может вызвать:** автор комментария с `author_association` `OWNER`, `MEMBER` или `COLLABORATOR`. Комментарии ботов игнорируются, поэтому агент не отвечает сам себе. `opencode github run` дополнительно проверяет у автора права `write` или `admin`. `pull_request_target` не используется, чужие fork ключ модели не получают.
+- **Модель:** `opencode/big-pickle` — бесплатная модель OpenCode Zen. Ключ — секрет `OPENCODE_API_KEY`. Для тяжёлых задач (`implement-spec`) модель меняется одной строкой `model`.
+- **`share: false`:** сессии агента не публикуются. Репозиторий открытый, а сессия содержит контекст задачи. Результат виден в комментарии и в логе прогона.
+- **Права:** стандартная авторизация OpenCode. `contents: read` и `id-token: write`: Actions обменивает OIDC-токен на токен GitHub App `opencode-agent`, и агент комментирует и пушит правами приложения. У checkout `persist-credentials: false`.
+- **Отличие от стандартной настройки:** добавлены `issues: read`, `pull-requests: read` и `GH_TOKEN: ${{ github.token }}`. `opencode github run` не передаёт токен приложения в shell агента, а скиллы читают трекер через `gh` (`docs/agents/issue-tracker.md`). Этот токен только читает, запись идёт через приложение.
+- **Ограничения:** `timeout-minutes: 30`. `concurrency` по номеру issue или PR: в одном обсуждении работает один прогон, следующий ждёт.
+- **Скиллы на раннере:** проектные скиллы лежат в `.claude/skills/`, OpenCode читает этот путь сам. Настройки трекера (`docs/agents/`) и правила (`AGENTS.md`) приходят с checkout.
+- **Остановка:** Actions → прогон → Cancel workflow останавливает текущий запуск. Actions → opencode → Disable workflow отключает будущие. Ключ можно отозвать в консоли opencode.ai.
+
 ---
 
 <details>
