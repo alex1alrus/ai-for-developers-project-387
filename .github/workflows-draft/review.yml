@@ -13,6 +13,7 @@ concurrency:
 env:
   PR_NUMBER: ${{ github.event.pull_request.number }}
   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+  BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
 jobs:
   review:
@@ -43,7 +44,7 @@ jobs:
           mkdir -p review-input
           gh pr view "$PR_NUMBER" -R "$GITHUB_REPOSITORY" \
             --json url,title,body,author,baseRefOid,headRefOid > review-input/pr.json
-          if [[ $(jq -r .headRefOid review-input/pr.json) != "$HEAD_SHA" ]]; then
+          if [[ $(jq -r '.baseRefOid + ":" + .headRefOid' review-input/pr.json) != "$BASE_SHA:$HEAD_SHA" ]]; then
             exit 0
           fi
           gh pr diff "$PR_NUMBER" -R "$GITHUB_REPOSITORY" > review-input/pr.diff
@@ -62,12 +63,15 @@ jobs:
 
           body = json.loads(Path('review-input/pr.json').read_text())['body'] or ''
           body = re.sub(r'<!--.*?-->', '', body, flags=re.S)
+          current_repo = os.environ['GITHUB_REPOSITORY']
           endpoints = {}
           for link in re.finditer(
-              r'https://github\.com/([\w.-]+/[\w.-]+)/(issues|pull)/(\d+)'
+              r'(?:(?:https://github\.com)?/([\w.-]+/[\w.-]+)/|(?<=[(\s])(?:\./)?)'
+              r'(issues|pull)/(\d+)'
               r'(?:#(issuecomment|discussion_r|pullrequestreview)-?(\d+))?', body
           ):
               repo, kind, number, anchor, comment = link.groups()
+              repo = repo or current_repo
               endpoints[f'repos/{repo}/{"pulls" if kind == "pull" else "issues"}/{number}'] = None
               if anchor:
                   suffix = {
@@ -77,7 +81,7 @@ jobs:
                   }[anchor]
                   endpoints[f'repos/{repo}/{suffix}'] = None
           for number in re.findall(r'(?<!\w)#(\d+)\b', body):
-              endpoints[f'repos/{os.environ["GITHUB_REPOSITORY"]}/issues/{number}'] = None
+              endpoints[f'repos/{current_repo}/issues/{number}'] = None
           with Path('review-input/references.jsonl').open('w') as out:
               for endpoint in list(endpoints)[:30]:
                   result = subprocess.run(
@@ -89,10 +93,15 @@ jobs:
                   print(json.dumps(record, ensure_ascii=False), file=out)
           PY
 
-          current=$(gh pr view "$PR_NUMBER" -R "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
-          if [[ "$current" = "$HEAD_SHA" ]]; then
+          current=$(gh pr view "$PR_NUMBER" -R "$GITHUB_REPOSITORY" \
+            --json baseRefOid,headRefOid --jq '.baseRefOid + ":" + .headRefOid')
+          if [[ "$current" = "$BASE_SHA:$HEAD_SHA" ]]; then
             echo 'ready=true' >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Install OpenCode CLI
+        if: steps.context.outputs.ready == 'true'
+        run: npm install --prefix "$RUNNER_TEMP/opencode" --no-audit --no-fund opencode-ai@1.19.6
 
       - name: Run independent OpenCode review
         if: steps.context.outputs.ready == 'true'
@@ -116,7 +125,7 @@ jobs:
           EOF
           fi
 
-          npx --yes --package=opencode-ai@1.19.6 opencode run --pure \
+          "$RUNNER_TEMP/opencode/node_modules/.bin/opencode" run --pure \
             --model opencode/gpt-6.2-sol --format json --file "$criteria" -- \
             "Проведи независимое ревью PR #$PR_NUMBER для SHA $HEAD_SHA по приложенным критериям.
           Прочитай review-input/pr.json, pr.diff, references.jsonl, check-runs.jsonl и status.json в review-input/.
@@ -157,8 +166,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          current=$(gh pr view "$PR_NUMBER" -R "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
-          if [[ "$current" != "$HEAD_SHA" ]]; then
+          current=$(gh pr view "$PR_NUMBER" -R "$GITHUB_REPOSITORY" \
+            --json baseRefOid,headRefOid --jq '.baseRefOid + ":" + .headRefOid')
+          if [[ "$current" != "$BASE_SHA:$HEAD_SHA" ]]; then
             exit 0
           fi
           {

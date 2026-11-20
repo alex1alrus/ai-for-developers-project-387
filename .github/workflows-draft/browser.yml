@@ -23,6 +23,7 @@ jobs:
           persist-credentials: false
 
       - name: Record and verify checkout SHA
+        id: checkout-sha
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -39,15 +40,14 @@ jobs:
         run: mise exec -- npx playwright test --trace on --output "$RUNNER_TEMP/browser-evidence/playwright"
 
       - name: Record result
-        if: ${{ always() }}
+        if: ${{ !cancelled() && steps.checkout-sha.outcome == 'success' }}
         env:
           E2E_OUTCOME: ${{ steps.e2e.outcome }}
         run: |
-          mkdir -p "$RUNNER_TEMP/browser-evidence"
           printf 'Playwright: %s\n' "${E2E_OUTCOME:-skipped}" | tee "$RUNNER_TEMP/browser-evidence/result.txt"
 
       - uses: actions/upload-artifact@v7
-        if: ${{ always() }}
+        if: ${{ !cancelled() && steps.checkout-sha.outcome == 'success' }}
         with:
           name: browser-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/browser-evidence
