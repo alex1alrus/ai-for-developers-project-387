@@ -29,6 +29,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Expressions compare strings case-insensitively, so `if:` above also admits `Main`.
+      # This shell check is exact; without a successful `collect` the agent job does not run.
+      - name: Require the main branch
+        run: '[ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::Run the audit from main, not $GITHUB_REF."; exit 1; }'
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
