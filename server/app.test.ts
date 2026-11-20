@@ -50,6 +50,37 @@ describe('SPA fallback', () => {
     await app.close()
   })
 
+  test('an existing robots.txt is served as the file', async () => {
+    writeFileSync(join(webRoot, 'robots.txt'), 'User-agent: *\nAllow: /\n')
+    const app = buildApp({ webRoot })
+    const res = await app.inject({ method: 'GET', url: '/robots.txt' })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toBe('User-agent: *\nAllow: /\n')
+    await app.close()
+  })
+
+  test('GET of a page path with a query returns index.html', async () => {
+    const app = buildApp({ webRoot })
+    const res = await app.inject({ method: 'GET', url: '/cancel?token=a.b' })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('<div id="root">')
+    await app.close()
+  })
+
+  test.each(['/robots.txt', '/llms.txt', '/.well-known/ard.json', '/.well-known/security'])(
+    'GET of a missing file %s returns 404 JSON, not the page',
+    async (url) => {
+      const app = buildApp({ webRoot })
+      const res = await app.inject({ method: 'GET', url })
+
+      expect(res.statusCode).toBe(404)
+      expect(res.json()).toMatchObject({ code: 'NOT_FOUND' })
+      await app.close()
+    },
+  )
+
   test('unknown API path returns 404 JSON, not the page', async () => {
     const app = buildApp({ webRoot })
     const res = await app.inject({ method: 'GET', url: '/api/unknown' })

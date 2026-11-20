@@ -118,7 +118,10 @@ export function buildApp({ webRoot = join(import.meta.dirname, '../dist'), now =
   app.register(glue, { specification, serviceHandlers })
   app.register(fastifyStatic, { root: webRoot })
   app.setNotFoundHandler((req, reply) => {
-    if (req.method === 'GET' && !/^\/api(\/|\?|$)/.test(req.url)) return reply.sendFile('index.html')
+    // Pages have no file extension; a missing file (`/robots.txt`, `/.well-known/ard.json`) is a 404, not the page.
+    const path = req.url.split('?')[0]
+    const isPage = !/^\/api(\/|$)/.test(path) && !path.startsWith('/.well-known/') && !/\.[^/]*$/.test(path)
+    if (req.method === 'GET' && isPage) return reply.sendFile('index.html')
     const error: ApiError = { code: 'NOT_FOUND', message: `${req.method} ${req.url} not found` }
     return reply.code(404).send(error)
   })

@@ -20,7 +20,7 @@ Tools and tasks live in `mise.toml` (Node, hk, pitchfork pinned there).
 
 - `spec/main.tsp` — TypeSpec API contract, the single source of truth for the API.
 - `src/` — React + Mantine frontend (Vite). It calls the API only through the generated SDK in `src/api`.
-- `server/` — Fastify API, run by Node directly (type stripping, no build step). `app.ts` builds the app, `index.ts` listens on `PORT`. `npm start` also serves the built `dist/` via `@fastify/static`, with SPA fallback (ADR-0001): `index.html` for any other `GET` outside `/api`, 404 `ApiError` `NOT_FOUND` otherwise. Routes and request validation come from the OpenAPI file via `fastify-openapi-glue`; handlers are typed by `RouteHandlers` from `server/api`.
+- `server/` — Fastify API, run by Node directly (type stripping, no build step). `app.ts` builds the app, `index.ts` listens on `PORT`. `npm start` also serves the built `dist/` via `@fastify/static`, with SPA fallback (ADR-0001): `index.html` for any other `GET` outside `/api` whose path has no file extension and is not under `/.well-known/`, 404 `ApiError` `NOT_FOUND` otherwise (so a missing `/robots.txt` is not answered with the page). Routes and request validation come from the OpenAPI file via `fastify-openapi-glue`; handlers are typed by `RouteHandlers` from `server/api`.
 - `server/*.test.ts` — Vitest tests via `app.inject`.
 - `e2e/*.e2e.ts` — Playwright browser scenario. The `.e2e.ts` suffix keeps Vitest from picking it up; Playwright only looks in `e2e/`.
 
