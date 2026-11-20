@@ -170,7 +170,7 @@ export const BookingCancelledSchema = {
       ]
     }
   },
-  description: 'The original booking after cancellation, without the secret.'
+  description: 'The original booking after cancellation, without the cancellation code.'
 } as const;
 
 export const BookingCreatedSchema = {
@@ -227,7 +227,7 @@ export const BookingCreatedSchema = {
     },
     cancellationUrl: {
       type: 'string',
-      description: 'A same-origin link with the secret code in its fragment.'
+      description: 'A same-origin link with the cancellation code in its fragment.'
     }
   },
   description: 'Only returned to the guest when a booking is created.'
@@ -281,11 +281,10 @@ export const CancellationRequestSchema = {
   ],
   properties: {
     cancellationCode: {
-      type: 'string',
-      minLength: 1
+      type: 'string'
     }
   },
-  description: 'The secret from the guest\'s cancellation link, sent in the request body.'
+  description: 'The cancellation code from the guest\'s cancellation link, sent in the request body.'
 } as const;
 
 export const EventTypeSchema = {

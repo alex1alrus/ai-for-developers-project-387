@@ -12,7 +12,7 @@ Tools and tasks live in `mise.toml` (Node, hk, pitchfork pinned there).
 - `mise run typecheck` — `tsc -b` for web and server.
 - `mise run test` — Vitest. Single test: `npx vitest run server/app.test.ts -t "<name>"`.
 - `mise run gen` — generate OpenAPI, frontend SDK and server types from the TypeSpec contract.
-- `mise run e2e` — Playwright scenario from `README.md` in Chromium (`e2e/*.e2e.ts`, config `playwright.config.ts`). Its `webServer` runs `npm run build && npm start` on port 3100, real time, no API mocks. Part of `check`.
+- `mise run e2e` — Playwright scenario from `README.md` in Chromium (`e2e/*.e2e.ts`, config `playwright.config.ts`). Its `webServer` runs `npm run build && npm start` on port 3100, real time, no API mocks. The cancellation-error scenario uses a separate real Fastify server on an ephemeral port with an injected clock so it can deterministically advance to the booking start. Part of `check`.
 - `mise run check` — `gen:check` (regenerate, fail if any generated file changed or appeared), then lint, typecheck, test, build and e2e; the same command runs in the pre-commit hook (hk) and GitHub Actions.
 - `mise run build` — production build of the frontend into `dist/`.
 

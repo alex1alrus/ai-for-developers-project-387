@@ -1,7 +1,7 @@
 import { Anchor, Card, List, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router'
 import { listBookings, listEventTypes } from '../api'
-import { dayMonth, time } from '../format.ts'
+import { bookingInterval } from '../format.ts'
 import { LoadFallback } from '../LoadFallback.tsx'
 import { useLoad } from '../useLoad.ts'
 
@@ -27,23 +27,18 @@ export default function OwnerBookingsPage() {
 
   return (
     <List listStyleType="none" spacing="sm">
-      {bookings.map((booking) => {
-        const start = new Date(booking.start)
-        return (
-          <List.Item key={booking.id}>
-            <Card withBorder>
-              <Text fw={600}>{titles.get(booking.eventTypeId) ?? booking.eventTypeId}</Text>
-              <Text>
-                {dayMonth.format(start)}, {time.format(start)}–{time.format(new Date(booking.end))}
-              </Text>
-              <Text c="dimmed">
-                {booking.guestName} · {booking.guestEmail}
-              </Text>
-              <Text>{booking.status === 'active' ? 'Действующая' : 'Отменена'}</Text>
-            </Card>
-          </List.Item>
-        )
-      })}
+      {bookings.map((booking) => (
+        <List.Item key={booking.id}>
+          <Card withBorder>
+            <Text fw={600}>{titles.get(booking.eventTypeId) ?? booking.eventTypeId}</Text>
+            <Text>{bookingInterval(new Date(booking.start), new Date(booking.end))}</Text>
+            <Text c="dimmed">
+              {booking.guestName} · {booking.guestEmail}
+            </Text>
+            <Text>{booking.status === 'active' ? 'Действующая' : 'Отменена'}</Text>
+          </Card>
+        </List.Item>
+      ))}
     </List>
   )
 }

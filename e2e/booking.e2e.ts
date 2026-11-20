@@ -1,10 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 test.use({ timezoneId: 'UTC' })
 
 // README scenario: booking, owner visibility, cancellation, and reuse of the released time.
 // Real time and one shared server, so ids and names are unique per run.
-test('guest books and cancels, the owner sees both statuses, and another guest books the released time', async ({ page }) => {
+test('guest books and cancels, the owner sees both statuses, and another guest books the released time', async ({ page, context }) => {
   const suffix = Date.now()
   const title = `Знакомство ${suffix}`
   const shorterTitle = `Короткий звонок ${suffix}`
@@ -34,6 +34,17 @@ test('guest books and cancels, the owner sees both statuses, and another guest b
 
   let slotDate = ''
   let cancellationUrl = ''
+  // [09:30, 10:00) overlaps the first booking [09:00, 09:45) by 15 minutes.
+  const overlappingSlot = (tab: Page) => tab.getByRole('button', { name: '09:30', exact: true })
+  const showShorterSlots = async (tab: Page) => {
+    await tab.goto(`/book/${shorterId}`)
+    const date = tab.getByRole('button', { name: slotDate, exact: true })
+    await date.click()
+    await expect(date).toHaveAttribute('aria-pressed', 'true')
+    await expect(tab.getByRole('button', { name: '10:00', exact: true })).toBeVisible()
+  }
+
+  const otherTab = await context.newPage()
   await test.step('guest books the first free slot', async () => {
     await page.goto('/book')
     await expect(page.getByRole('heading', { name: 'Каталог типов встреч' })).toBeVisible()
@@ -50,6 +61,13 @@ test('guest books and cancels, the owner sees both statuses, and another guest b
 
     await page.getByLabel('Имя').fill(guestName)
     await page.getByLabel('Email').fill(guestEmail)
+    await test.step('another guest fills the overlapping slot form before the first booking is submitted', async () => {
+      await showShorterSlots(otherTab)
+      await overlappingSlot(otherTab).click()
+      await otherTab.getByLabel('Имя').fill('Борис')
+      await otherTab.getByLabel('Email').fill(`boris-${suffix}@example.com`)
+    })
+
     await page.getByRole('button', { name: 'Записаться' }).click()
     await expect(page.getByRole('heading', { name: 'Вы записаны' })).toBeVisible()
     await expect(page.getByText(title)).toBeVisible()
@@ -58,6 +76,17 @@ test('guest books and cancels, the owner sees both statuses, and another guest b
     await expect(cancellationLink).toBeVisible()
     cancellationUrl = (await cancellationLink.getAttribute('href')) ?? ''
     expect(cancellationUrl).toMatch(/^\/cancel#/)
+  })
+
+  await test.step('the stale form returns a cross-type booking conflict while the first booking is active', async () => {
+    const post = otherTab.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/bookings' && response.request().method() === 'POST')
+    await otherTab.getByRole('button', { name: 'Записаться' }).click()
+    const response = await post
+    expect(response.status()).toBe(409)
+    expect(await response.json()).toMatchObject({ code: 'BOOKING_CONFLICT' })
+    await expect(otherTab.getByRole('alert')).toHaveText('Это время уже недоступно. Выберите другое.')
+    await otherTab.close()
   })
 
   await test.step('opening and reloading the secret link shows active details without modifying the booking', async () => {
@@ -90,19 +119,9 @@ test('guest books and cancels, the owner sees both statuses, and another guest b
     await expect(booking).not.toContainText(cancellationUrl.split('#')[1])
   })
 
-  // The first slot on this future date is [09:00, 09:45). [09:30, 10:00) overlaps by 15 minutes.
-  const overlappingSlot = page.getByRole('button', { name: '09:30', exact: true })
-  const showShorterSlots = async () => {
-    await page.goto(`/book/${shorterId}`)
-    const date = page.getByRole('button', { name: slotDate, exact: true })
-    await date.click()
-    await expect(date).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.getByRole('button', { name: '10:00', exact: true })).toBeVisible()
-  }
-
   await test.step('guest explicitly cancels the booking and sees confirmation', async () => {
-    await showShorterSlots()
-    await expect(overlappingSlot).toHaveCount(0)
+    await showShorterSlots(page)
+    await expect(overlappingSlot(page)).toHaveCount(0)
 
     await page.goto(cancellationUrl)
     const cancelButton = page.getByRole('button', { name: 'Отменить запись' })
@@ -128,8 +147,8 @@ test('guest books and cancels, the owner sees both statuses, and another guest b
   })
 
   await test.step('another guest books the released, partially overlapping slot', async () => {
-    await showShorterSlots()
-    await overlappingSlot.click()
+    await showShorterSlots(page)
+    await overlappingSlot(page).click()
     await page.getByLabel('Имя').fill('Борис')
     await page.getByLabel('Email').fill(`boris-${suffix}@example.com`)
     const post = page.waitForResponse((response) =>

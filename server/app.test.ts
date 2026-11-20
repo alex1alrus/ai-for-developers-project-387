@@ -307,9 +307,9 @@ describe('POST /api/bookings', () => {
     const missing = await cancel(app)
     expect(missing.statusCode).toBe(400)
     expect(missing.json()).toEqual({ code: 'VALIDATION_ERROR', message: expect.any(String) })
-    for (const code of ['invalid', 'a'.repeat(43)]) {
+    for (const code of ['', 'invalid', 'a'.repeat(43)]) {
       const wrong = await cancel(app, code)
-      expect(wrong.statusCode).toBe(404)
+      expect(wrong.statusCode, JSON.stringify(code)).toBe(404)
       expect(wrong.json()).toEqual({ code: 'INVALID_CANCELLATION_CODE', message: expect.any(String) })
     }
     expect(await listBookings(app)).toEqual([booking])

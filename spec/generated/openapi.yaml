@@ -62,7 +62,7 @@ paths:
   /api/bookings/cancellation:
     get:
       operationId: getBookingForCancellation
-      description: Reads booking details without changing the booking. The guest code is never returned.
+      description: Reads booking details without changing the booking. The cancellation code is never returned.
       parameters:
         - name: x-cancellation-code
           in: header
@@ -88,7 +88,8 @@ paths:
       operationId: cancelBooking
       description: |-
         Cancels an active booking before it starts. The booking is retained and no longer occupies its interval.
-        Checks the cancellation code, then the booking status, then the start time. A missing body code is a 400 validation error.
+        Checks the cancellation code, then the booking status, then the start time.
+        An omitted cancellation code is a 400 validation error; an empty or unknown cancellation code is a 404.
       parameters: []
       responses:
         '200':
@@ -331,7 +332,7 @@ components:
           type: string
           enum:
             - cancelled
-      description: The original booking after cancellation, without the secret.
+      description: The original booking after cancellation, without the cancellation code.
     BookingCreated:
       type: object
       required:
@@ -376,7 +377,7 @@ components:
           type: string
         cancellationUrl:
           type: string
-          description: A same-origin link with the secret code in its fragment.
+          description: A same-origin link with the cancellation code in its fragment.
       description: Only returned to the guest when a booking is created.
     BookingRequest:
       type: object
@@ -415,8 +416,7 @@ components:
       properties:
         cancellationCode:
           type: string
-          minLength: 1
-      description: The secret from the guest's cancellation link, sent in the request body.
+      description: The cancellation code from the guest's cancellation link, sent in the request body.
     EventType:
       type: object
       required:

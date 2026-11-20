@@ -59,7 +59,7 @@ export type BookingAlreadyStartedError = {
 };
 
 /**
- * The original booking after cancellation, without the secret.
+ * The original booking after cancellation, without the cancellation code.
  */
 export type BookingCancelled = {
   id: string;
@@ -102,7 +102,7 @@ export type BookingCreated = {
   status: 'active';
   cancellationCode: string;
   /**
-   * A same-origin link with the secret code in its fragment.
+   * A same-origin link with the cancellation code in its fragment.
    */
   cancellationUrl: string;
 };
@@ -126,7 +126,7 @@ export type BookingRequest = {
 export type BookingStatus = 'active' | 'cancelled';
 
 /**
- * The secret from the guest's cancellation link, sent in the request body.
+ * The cancellation code from the guest's cancellation link, sent in the request body.
  */
 export type CancellationRequest = {
   cancellationCode: string;

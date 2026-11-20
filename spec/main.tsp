@@ -74,17 +74,16 @@ model BookingCreated {
   status: "active";
   cancellationCode: string;
 
-  /** A same-origin link with the secret code in its fragment. */
+  /** A same-origin link with the cancellation code in its fragment. */
   cancellationUrl: string;
 }
 
-/** The secret from the guest's cancellation link, sent in the request body. */
+/** The cancellation code from the guest's cancellation link, sent in the request body. */
 model CancellationRequest {
-  @minLength(1)
   cancellationCode: string;
 }
 
-/** The original booking after cancellation, without the secret. */
+/** The original booking after cancellation, without the cancellation code. */
 model BookingCancelled {
   ...OmitProperties<Booking, "status">;
   status: "cancelled";
@@ -179,7 +178,7 @@ interface Bookings {
   /** Active and cancelled upcoming bookings (`end > now`, ongoing included) of all event types sorted by start. */
   @get @OpenAPI.operationId("listBookings") list(): Booking[];
 
-  /** Reads booking details without changing the booking. The guest code is never returned. */
+  /** Reads booking details without changing the booking. The cancellation code is never returned. */
   @get
   @route("cancellation")
   @OpenAPI.operationId("getBookingForCancellation")
@@ -192,7 +191,8 @@ interface Bookings {
 
   /**
    * Cancels an active booking before it starts. The booking is retained and no longer occupies its interval.
-   * Checks the cancellation code, then the booking status, then the start time. A missing body code is a 400 validation error.
+   * Checks the cancellation code, then the booking status, then the start time.
+   * An omitted cancellation code is a 400 validation error; an empty or unknown cancellation code is a 404.
    */
   @post
   @route("cancellation")

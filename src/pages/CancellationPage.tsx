@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useLocation } from 'react-router'
 import { cancelBooking, getBookingForCancellation, listEventTypes } from '../api'
 import { errorCode } from '../apiError.ts'
-import { dayMonth, time, timeZoneLabel } from '../format.ts'
+import { bookingInterval, timeZoneLabel } from '../format.ts'
 import { LoadFallback } from '../LoadFallback.tsx'
 import { useLoad } from '../useLoad.ts'
 
@@ -24,8 +24,8 @@ function failureMessage(code: ReturnType<typeof errorCode>) {
 
 async function load(code: string) {
   const { data: booking } = await getBookingForCancellation({ headers: { 'x-cancellation-code': code }, throwOnError: true })
-  const { data: eventTypes } = await listEventTypes({ throwOnError: true })
-  const title = eventTypes.find((eventType) => eventType.id === booking.eventTypeId)?.title ?? booking.eventTypeId
+  const { data: eventTypes } = await listEventTypes()
+  const title = eventTypes?.find((eventType) => eventType.id === booking.eventTypeId)?.title ?? booking.eventTypeId
   return { booking, title }
 }
 
@@ -55,7 +55,7 @@ function CancellationDetails({ code }: { code: string }) {
   return (
     <Stack gap="xs">
       <Text fw={600}>{title}</Text>
-      <Text>{dayMonth.format(start)}, {time.format(start)}–{time.format(new Date(booking.end))}</Text>
+      <Text>{bookingInterval(start, new Date(booking.end))}</Text>
       <Text size="sm" c="dimmed">Часовой пояс: {timeZoneLabel(start)}</Text>
       <Text>{booking.guestName}</Text>
       <Text>{booking.guestEmail}</Text>
@@ -78,10 +78,12 @@ function CancellationDetails({ code }: { code: string }) {
 
 export default function CancellationPage() {
   const code = useLocation().hash.slice(1)
+  // The server encodes 32 bytes as unpadded base64url; the final character has two zero padding bits.
+  const wellFormed = code.length === 43 && /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(code)
   return (
     <Stack>
       <Title>Детали записи</Title>
-      <CancellationDetails key={code} code={code} />
+      {wellFormed ? <CancellationDetails key={code} code={code} /> : <Text role="alert">{invalidLink}</Text>}
     </Stack>
   )
 }

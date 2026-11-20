@@ -36,13 +36,14 @@ export const createBooking = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
- * Reads booking details without changing the booking. The guest code is never returned.
+ * Reads booking details without changing the booking. The cancellation code is never returned.
  */
 export const getBookingForCancellation = <ThrowOnError extends boolean = false>(options?: Options<GetBookingForCancellationData, ThrowOnError>): RequestResult<GetBookingForCancellationResponses, GetBookingForCancellationErrors, ThrowOnError> => (options?.client ?? client).get<GetBookingForCancellationResponses, GetBookingForCancellationErrors, ThrowOnError>({ url: '/api/bookings/cancellation', ...options });
 
 /**
  * Cancels an active booking before it starts. The booking is retained and no longer occupies its interval.
- * Checks the cancellation code, then the booking status, then the start time. A missing body code is a 400 validation error.
+ * Checks the cancellation code, then the booking status, then the start time.
+ * An omitted cancellation code is a 400 validation error; an empty or unknown cancellation code is a 404.
  */
 export const cancelBooking = <ThrowOnError extends boolean = false>(options: Options<CancelBookingData, ThrowOnError>): RequestResult<CancelBookingResponses, CancelBookingErrors, ThrowOnError> => (options.client ?? client).post<CancelBookingResponses, CancelBookingErrors, ThrowOnError>({
   url: '/api/bookings/cancellation',

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Request } from '@playwright/test'
 import { buildApp } from '../server/app.ts'
 
 test('the cancellation page explains an invalid link, a started booking, and an already cancelled booking', async ({ page, request }) => {
@@ -25,8 +25,28 @@ test('the cancellation page explains an invalid link, a started booking, and an 
     const later = await book('2026-11-18T11:00:00.000Z')
     const cancel = page.getByRole('button', { name: 'Отменить запись' })
 
-    await test.step('an unknown link cannot open the booking', async () => {
-      await page.goto(`${origin}/cancel#invalid`)
+    const cancellationPath = '/api/bookings/cancellation'
+    await test.step('a malformed link is rejected without sending its fragment to the API', async () => {
+      const lookups: string[] = []
+      const recordLookup = (request: Request) => {
+        if (new URL(request.url()).pathname === cancellationPath) lookups.push(request.method())
+      }
+      page.on('request', recordLookup)
+      await page.goto(`${origin}/cancel#${'A'.repeat(20_000)}`)
+      await expect(page.getByRole('alert')).toHaveText('Ссылка отмены недействительна')
+      expect(lookups).toEqual([])
+      page.off('request', recordLookup)
+    })
+
+    await test.step('the server rejects an unknown but well-formed code', async () => {
+      const code = 'A'.repeat(43)
+      const lookup = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === cancellationPath && response.request().method() === 'GET')
+      await page.goto(`${origin}/cancel#${code}`)
+      const response = await lookup
+      expect(response.request().headers()['x-cancellation-code']).toBe(code)
+      expect(response.status()).toBe(404)
+      expect(await response.json()).toMatchObject({ code: 'INVALID_CANCELLATION_CODE' })
       await expect(page.getByRole('alert')).toHaveText('Ссылка отмены недействительна')
     })
 
