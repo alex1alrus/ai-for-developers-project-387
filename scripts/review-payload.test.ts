@@ -197,6 +197,29 @@ describe('review payload', () => {
     }
   })
 
+  test('an array answer is shown as is, even with a single review object', () => {
+    const { payload: p } = build(JSON.stringify([{ summary: 'ok', findings: [], gaps: [] }]))
+    expect(p.body).toContain('⚠️ Формат ответа модели не распознан')
+    expect(p.body).not.toContain('Подтверждённых дефектов нет.')
+  })
+
+  test('a suggestion block is turned into plain code, so GitHub offers no patch to apply', () => {
+    const fixed = '```suggestion\nconst b = 3\n```'
+    const { payload: p } = build(JSON.stringify({ summary: fixed, findings: [{ ...finding('major', 'server/app.ts', 11), fix: fixed }, { ...finding('minor', null, null), body: fixed }] }))
+    expect(JSON.stringify(p)).not.toContain('```suggestion')
+    expect(p.comments[0].body).toContain('```text\nconst b = 3')
+  })
+
+  test('findings and gaps come before a long summary, so the cut keeps them', () => {
+    const { payload: p, fallback: f } = build(
+      JSON.stringify({ summary: 'x'.repeat(70000), findings: [finding('blocker', null, null, 'off')], gaps: ['gap'] }),
+    )
+    for (const body of [p.body, f.body]) {
+      expect(body).toContain('🔴 **blocker** — off')
+      expect(body).toContain('- ⚪ gap')
+    }
+  })
+
   test('findings dropped for a missing body are counted, not hidden behind a no-defects claim', () => {
     const { payload: p } = build(JSON.stringify({ findings: [{ severity: 'blocker', description: 'lost' }] }))
     expect(p.body).toContain('⚠️ Пропущено замечаний без текста или не в формате: 1')
