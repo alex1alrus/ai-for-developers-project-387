@@ -171,7 +171,9 @@ jobs:
       - name: Post stop reason on PR
         env:
           GH_TOKEN: ${{ github.token }}
-          REASON: ${{ needs.opencode.outputs.reason }}
+          REASON: >-
+            ${{ needs.opencode.outputs.reason || steps.budget.outputs.reason ||
+                (needs.opencode.result == 'cancelled' && 'cancelled') || 'unknown' }}
           USED: ${{ needs.opencode.outputs.used || steps.budget.outputs.used }}
         shell: bash
         run: |
@@ -180,6 +182,7 @@ jobs:
             timeout) detail='Вызов OpenCode превысил тайм-аут.' ;;
             infra) detail='Не удалось подготовить запуск OpenCode.' ;;
             agent_failed) detail='OpenCode завершился с ошибкой.' ;;
+            cancelled) detail='Задание OpenCode отменено. Проверьте логи прогона.' ;;
             *) REASON=unknown; detail='Причину нужно проверить по логам.' ;;
           esac
           if [[ ! "$USED" =~ ^[0-9]+$ ]]; then
