@@ -97,6 +97,8 @@ union ApiErrorCode {
   "EVENT_TYPE_EXISTS",
   "BOOKING_CONFLICT",
   "INVALID_CANCELLATION_CODE",
+  "BOOKING_ALREADY_CANCELLED",
+  "BOOKING_ALREADY_STARTED",
 
   // Unknown path under `/api`, or a non-GET request outside it.
   "NOT_FOUND",
@@ -110,10 +112,25 @@ model ApiError {
   message: string;
 }
 
+/** The cancellation code is missing from a details request, invalid, or unknown. */
 @error
 model InvalidCancellationCodeError {
   ...OmitProperties<ApiError, "code">;
   code: "INVALID_CANCELLATION_CODE";
+}
+
+/** The booking was already cancelled; this takes precedence over its start time. */
+@error
+model BookingAlreadyCancelledError {
+  ...OmitProperties<ApiError, "code">;
+  code: "BOOKING_ALREADY_CANCELLED";
+}
+
+/** The active booking has reached its start time, including bookings that have already ended. */
+@error
+model BookingAlreadyStartedError {
+  ...OmitProperties<ApiError, "code">;
+  code: "BOOKING_ALREADY_STARTED";
 }
 
 @route("/api/event-types")
@@ -173,7 +190,10 @@ interface Bookings {
         @body body: InvalidCancellationCodeError;
       };
 
-  /** Cancels an active booking before it starts. The booking is retained and no longer occupies its interval. */
+  /**
+   * Cancels an active booking before it starts. The booking is retained and no longer occupies its interval.
+   * Checks the cancellation code, then the booking status, then the start time. A missing body code is a 400 validation error.
+   */
   @post
   @route("cancellation")
   @OpenAPI.operationId("cancelBooking")
@@ -186,6 +206,10 @@ interface Bookings {
     | {
         @statusCode statusCode: 404;
         @body body: InvalidCancellationCodeError;
+      }
+    | {
+        @statusCode statusCode: 409;
+        @body body: BookingAlreadyCancelledError | BookingAlreadyStartedError;
       };
 
   /** Books a free slot; no overlap with an active booking of any event type. */

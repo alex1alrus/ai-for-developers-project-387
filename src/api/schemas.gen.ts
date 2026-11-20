@@ -26,6 +26,8 @@ export const ApiErrorCodeSchema = {
     'EVENT_TYPE_EXISTS',
     'BOOKING_CONFLICT',
     'INVALID_CANCELLATION_CODE',
+    'BOOKING_ALREADY_CANCELLED',
+    'BOOKING_ALREADY_STARTED',
     'NOT_FOUND'
   ]
 } as const;
@@ -76,6 +78,48 @@ export const BookingSchema = {
     }
   },
   description: 'An interval `[start, end)` a guest took for an event type.'
+} as const;
+
+export const BookingAlreadyCancelledErrorSchema = {
+  type: 'object',
+  required: [
+    'message',
+    'code'
+  ],
+  properties: {
+    message: {
+      type: 'string',
+      description: 'English text for developers; the UI builds user text from `code`.'
+    },
+    code: {
+      type: 'string',
+      enum: [
+        'BOOKING_ALREADY_CANCELLED'
+      ]
+    }
+  },
+  description: 'The booking was already cancelled; this takes precedence over its start time.'
+} as const;
+
+export const BookingAlreadyStartedErrorSchema = {
+  type: 'object',
+  required: [
+    'message',
+    'code'
+  ],
+  properties: {
+    message: {
+      type: 'string',
+      description: 'English text for developers; the UI builds user text from `code`.'
+    },
+    code: {
+      type: 'string',
+      enum: [
+        'BOOKING_ALREADY_STARTED'
+      ]
+    }
+  },
+  description: 'The active booking has reached its start time, including bookings that have already ended.'
 } as const;
 
 export const BookingCancelledSchema = {
@@ -299,7 +343,8 @@ export const InvalidCancellationCodeErrorSchema = {
         'INVALID_CANCELLATION_CODE'
       ]
     }
-  }
+  },
+  description: 'The cancellation code is missing from a details request, invalid, or unknown.'
 } as const;
 
 export const SlotSchema = {

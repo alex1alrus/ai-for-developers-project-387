@@ -42,6 +42,7 @@ export const getBookingForCancellation = <ThrowOnError extends boolean = false>(
 
 /**
  * Cancels an active booking before it starts. The booking is retained and no longer occupies its interval.
+ * Checks the cancellation code, then the booking status, then the start time. A missing body code is a 400 validation error.
  */
 export const cancelBooking = <ThrowOnError extends boolean = false>(options: Options<CancelBookingData, ThrowOnError>): RequestResult<CancelBookingResponses, CancelBookingErrors, ThrowOnError> => (options.client ?? client).post<CancelBookingResponses, CancelBookingErrors, ThrowOnError>({
   url: '/api/bookings/cancellation',

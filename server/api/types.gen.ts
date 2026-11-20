@@ -12,7 +12,7 @@ export type ApiError = {
   message: string;
 };
 
-export type ApiErrorCode = 'VALIDATION_ERROR' | 'INVALID_START' | 'EVENT_TYPE_NOT_FOUND' | 'EVENT_TYPE_EXISTS' | 'BOOKING_CONFLICT' | 'INVALID_CANCELLATION_CODE' | 'NOT_FOUND';
+export type ApiErrorCode = 'VALIDATION_ERROR' | 'INVALID_START' | 'EVENT_TYPE_NOT_FOUND' | 'EVENT_TYPE_EXISTS' | 'BOOKING_CONFLICT' | 'INVALID_CANCELLATION_CODE' | 'BOOKING_ALREADY_CANCELLED' | 'BOOKING_ALREADY_STARTED' | 'NOT_FOUND';
 
 /**
  * An interval `[start, end)` a guest took for an event type.
@@ -34,6 +34,28 @@ export type Booking = {
    */
   end: string;
   status: BookingStatus;
+};
+
+/**
+ * The booking was already cancelled; this takes precedence over its start time.
+ */
+export type BookingAlreadyCancelledError = {
+  /**
+   * English text for developers; the UI builds user text from `code`.
+   */
+  message: string;
+  code: 'BOOKING_ALREADY_CANCELLED';
+};
+
+/**
+ * The active booking has reached its start time, including bookings that have already ended.
+ */
+export type BookingAlreadyStartedError = {
+  /**
+   * English text for developers; the UI builds user text from `code`.
+   */
+  message: string;
+  code: 'BOOKING_ALREADY_STARTED';
 };
 
 /**
@@ -129,6 +151,9 @@ export type EventType = {
   durationMinutes: number;
 };
 
+/**
+ * The cancellation code is missing from a details request, invalid, or unknown.
+ */
 export type InvalidCancellationCodeError = {
   /**
    * English text for developers; the UI builds user text from `code`.
@@ -238,6 +263,10 @@ export type CancelBookingErrors = {
    * The server cannot find the requested resource.
    */
   404: InvalidCancellationCodeError;
+  /**
+   * The request conflicts with the current state of the server.
+   */
+  409: BookingAlreadyCancelledError | BookingAlreadyStartedError;
 };
 
 export type CancelBookingError = CancelBookingErrors[keyof CancelBookingErrors];

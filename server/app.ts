@@ -10,7 +10,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 const specification = join(import.meta.dirname, '../spec/generated/openapi.yaml')
 
 // `webRoot`: the built frontend (`npm run build`), served with SPA fallback (ADR-0001).
-export function buildApp({ webRoot = join(import.meta.dirname, '../dist') } = {}) {
+export function buildApp({ webRoot = join(import.meta.dirname, '../dist'), now = () => Date.now() } = {}) {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' })
   const eventTypes: EventType[] = []
   const bookings: Booking[] = []
@@ -48,11 +48,11 @@ export function buildApp({ webRoot = join(import.meta.dirname, '../dist') } = {}
     listSlots(req, reply) {
       const eventType = findEventType(req.params.id, reply)
       if (!eventType) return
-      reply.code(200).send(freeSlots(eventType.durationMinutes, occupiedIntervals(), new Date()))
+      reply.code(200).send(freeSlots(eventType.durationMinutes, occupiedIntervals(), new Date(now())))
     },
     listBookings(_req, reply) {
-      const now = Date.now()
-      reply.code(200).send(bookings.filter((b) => Date.parse(b.end) > now).toSorted((a, b) => a.start.localeCompare(b.start)))
+      const time = now()
+      reply.code(200).send(bookings.filter((b) => Date.parse(b.end) > time).toSorted((a, b) => a.start.localeCompare(b.start)))
     },
     getBookingForCancellation(req, reply) {
       const booking = findBookingForCancellation(req.headers['x-cancellation-code'], reply)
@@ -61,8 +61,12 @@ export function buildApp({ webRoot = join(import.meta.dirname, '../dist') } = {}
     cancelBooking(req, reply) {
       const booking = findBookingForCancellation(req.body.cancellationCode, reply)
       if (!booking) return
-      if (booking.status !== 'active' || Date.parse(booking.start) <= Date.now()) {
-        reply.code(400).send({ code: 'VALIDATION_ERROR', message: 'Booking cannot be cancelled' })
+      if (booking.status === 'cancelled') {
+        reply.code(409).send({ code: 'BOOKING_ALREADY_CANCELLED', message: 'Booking has already been cancelled' })
+        return
+      }
+      if (Date.parse(booking.start) <= now()) {
+        reply.code(409).send({ code: 'BOOKING_ALREADY_STARTED', message: 'Booking has already started' })
         return
       }
       booking.status = 'cancelled'
@@ -73,15 +77,15 @@ export function buildApp({ webRoot = join(import.meta.dirname, '../dist') } = {}
       const { eventTypeId, start, guestName, guestEmail } = req.body
       const eventType = findEventType(eventTypeId, reply)
       if (!eventType) return
-      const now = new Date()
+      const time = new Date(now())
       const startIso = new Date(start).toISOString()
-      const slot = freeSlots(eventType.durationMinutes, [], now).find((slot) => slot.start === startIso)
+      const slot = freeSlots(eventType.durationMinutes, [], time).find((slot) => slot.start === startIso)
       if (!slot) {
         reply.code(400).send({ code: 'INVALID_START', message: `${start} is not a slot start of "${eventTypeId}"` })
         return
       }
       // The overlap rule itself lives in `freeSlots`: a slot that overlaps an occupied interval is not free.
-      if (!freeSlots(eventType.durationMinutes, occupiedIntervals(), now).some((free) => free.start === slot.start)) {
+      if (!freeSlots(eventType.durationMinutes, occupiedIntervals(), time).some((free) => free.start === slot.start)) {
         reply.code(409).send({ code: 'BOOKING_CONFLICT', message: `${start} overlaps an existing booking` })
         return
       }
