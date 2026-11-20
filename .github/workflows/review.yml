@@ -155,10 +155,15 @@ jobs:
           Исходники в рабочей папке — базовая ветка; изменения PR бери из diff.
           Незавершённые или отсутствующие проверки не считай успешными. Если источник недоступен, укажи пробел.
           Верни только итог ревью на русском в Markdown. Не исправляй код и не запускай /oc." \
-            > "$RUNNER_TEMP/review-events.jsonl" </dev/null
+            > "$RUNNER_TEMP/review-events.jsonl" </dev/null \
+            || { echo "::error::opencode run exited with $?"; tail -c 3000 "$RUNNER_TEMP/review-events.jsonl"; exit 1; }
 
-          jq -esr '[.[] | select(.type == "text") | .part.text] | join("\n\n") | select(test("\\S"))' \
-            "$RUNNER_TEMP/review-events.jsonl" > "$RUNNER_TEMP/review.md"
+          if ! jq -esr '[.[] | select(.type == "text") | .part.text] | join("\n\n") | select(test("\\S"))' \
+            "$RUNNER_TEMP/review-events.jsonl" > "$RUNNER_TEMP/review.md"; then
+            # No review text: show event types and errors for diagnosis.
+            jq -c 'select(.type != "text") | {type, error: (.error // .part.error // null)}' "$RUNNER_TEMP/review-events.jsonl" | tail -20
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v7
         if: steps.context.outputs.ready == 'true'
