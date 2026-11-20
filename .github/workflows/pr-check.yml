@@ -1,0 +1,50 @@
+name: PR check
+
+# Squash merge takes the PR title as the commit subject on main, and release-please
+# reads it. This check makes the format and the template enforced, not only asked for
+# in AGENTS.md. No secrets, no checkout: title and body come from the event payload.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check title and template sections
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        shell: python3 {0}
+        run: |
+          import os, re, sys
+
+          errors = []
+          title = os.environ['TITLE']
+          if not re.fullmatch(r'(feat|fix|docs|test|refactor|perf|build|ci|chore|revert)(\([\w./-]+\))?!?: \S.*', title):
+              errors.append(f'Заголовок не по Conventional Commits: "{title}". Пример: "feat: cancel a booking (#10)".')
+
+          # release-please writes its own body; its title is still checked.
+          if not os.environ['HEAD_REF'].startswith('release-please--'):
+              body = re.sub(r'<!--.*?-->', '', os.environ['BODY'] or '', flags=re.S)
+              parts = re.split(r'^## +(.+?)\s*$', body, flags=re.M)
+              sections = {name: text.strip() for name, text in zip(parts[1::2], parts[2::2])}
+              template = ['Исходное обращение', 'Спецификация', 'Тикеты', 'Согласование человеком',
+                          'Проверки', 'Риск', 'Откат']
+              for name in template:
+                  if not sections.get(name):
+                      errors.append(f'Раздел «{name}» из .github/pull_request_template.md отсутствует или пуст.')
+              if not re.search(r'(?i)\b(closes|fixes|resolves) #\d+', body):
+                  errors.append('Нет строки "Closes #N" для закрываемой задачи.')
+
+          for error in errors:
+              print(f'::error::{error}')
+          sys.exit(1 if errors else 0)
