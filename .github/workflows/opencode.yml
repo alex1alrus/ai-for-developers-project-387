@@ -6,6 +6,7 @@ run-name: >-
   ${{ (startsWith(github.event.comment.body, '/oc') || startsWith(github.event.comment.body, '/opencode')) &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
       github.event.comment.user.type != 'Bot' &&
+      (github.event_name != 'pull_request_review_comment' || github.event.pull_request.head.repo.full_name == github.repository) &&
       (github.event.pull_request.number || github.event.issue.pull_request) &&
       format('opencode: admitted PR #{0}', github.event.pull_request.number || github.event.issue.number) ||
       format('opencode: comment on #{0}', github.event.pull_request.number || github.event.issue.number) }}
@@ -25,14 +26,17 @@ env:
 jobs:
   opencode:
     # In a PR the command must start the comment, so a mention in the text does not spend
-    # the budget; keep this branch in sync with run-name. Plain issues keep the old rule.
+    # the budget; keep this branch in sync with run-name (checked by scripts/opencode-workflow.test.ts).
+    # Plain issues keep the old rule. A diff-line comment in a fork PR gets a read-only
+    # token and no secrets, so it is skipped.
     if: >-
       ((github.event.pull_request.number || github.event.issue.pull_request) &&
          (startsWith(github.event.comment.body, '/oc') || startsWith(github.event.comment.body, '/opencode')) ||
        !(github.event.pull_request.number || github.event.issue.pull_request) &&
          (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode'))) &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-      github.event.comment.user.type != 'Bot'
+      github.event.comment.user.type != 'Bot' &&
+      (github.event_name != 'pull_request_review_comment' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: ${{ (github.event.pull_request.number || github.event.issue.pull_request) && 35 || 30 }}
     concurrency:
