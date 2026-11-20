@@ -226,6 +226,22 @@ OpenCode запускается при открытии issue пользоват
 - **Учебный режим:** при ручном запуске включите `training` (по умолчанию выключен). При успешном сборе к реальным результатам добавляется одна подготовленная находка `training/lighthouse-demo`, которая первой проходит проверку дублей. У её issue префикс `[учебный]`, метка `training` и пояснение, что это не дефект приложения.
 - **Права:** на уровне воркфлоу `permissions: {}`. У `collect` только `contents: read`, у `agent` — `contents: read` и `issues: write`. OpenCode использует `GITHUB_TOKEN` без OIDC и прав на создание PR; правка файлов отключена.
 
+#### Результаты ручных запусков
+
+Оба прогона запущены через **Run workflow** из `main` с `training: false`. Запуск по расписанию задан в `cron` (`17 6 * * *`): ежедневно в **06:17 по Москве**.
+
+| Прогон | Артефакт с отчётом | Истекает (`expires_at`, UTC) |
+| --- | --- | --- |
+| [Первый, 44745341722](https://github.com/alex1alrus/ai-for-developers-project-387/actions/runs/44745341722) | [`lighthouse-44745341722-1`](https://github.com/alex1alrus/ai-for-developers-project-387/actions/runs/44745341722/artifacts/14631609864) | 20 декабря 2026, 13:34:09 |
+| [Повторный, 44745968920](https://github.com/alex1alrus/ai-for-developers-project-387/actions/runs/44745968920) | [`lighthouse-44745968920-1`](https://github.com/alex1alrus/ai-for-developers-project-387/actions/runs/44745968920/artifacts/14632737954) | 20 декабря 2026, 13:38:29 |
+
+Отчёты доступны 30 дней в разделе **Artifacts** на страницах прогонов. Вывод агента хранится без срока истечения в комментариях [журнала #39](https://github.com/alex1alrus/ai-for-developers-project-387/issues/39) и в issue с меткой [`audit`](https://github.com/alex1alrus/ai-for-developers-project-387/issues?q=is%3Aissue+label%3Aaudit).
+
+- **Первый прогон:** создан журнал и опубликован [первый комментарий](https://github.com/alex1alrus/ai-for-developers-project-387/issues/39#issuecomment-7040876072). Из семи находок пять оформлены как issue: [#40](https://github.com/alex1alrus/ai-for-developers-project-387/issues/40), [#41](https://github.com/alex1alrus/ai-for-developers-project-387/issues/41), [#42](https://github.com/alex1alrus/ai-for-developers-project-387/issues/42), [#43](https://github.com/alex1alrus/ai-for-developers-project-387/issues/43) и [#44](https://github.com/alex1alrus/ai-for-developers-project-387/issues/44). Две отложены из-за лимита.
+- **Повторный прогон:** опубликован [второй комментарий](https://github.com/alex1alrus/ai-for-developers-project-387/issues/39#issuecomment-7040964248). Четыре находки совпали с открытыми #41–#44; для них не создали новых issue и не добавили комментариев. Две отложенные находки оформлены как [#46](https://github.com/alex1alrus/ai-for-developers-project-387/issues/46) и [#47](https://github.com/alex1alrus/ai-for-developers-project-387/issues/47).
+
+Между двумя одиночными замерами на одном SHA оценка `performance` снизилась с `0.98` до `0.91`. Во втором замере появились находки по Total Blocking Time ([#45](https://github.com/alex1alrus/ai-for-developers-project-387/issues/45)) и Max Potential FID ([#48](https://github.com/alex1alrus/ai-for-developers-project-387/issues/48)). Оценка First Contentful Paint (#40) выросла с `0.86` до `0.90`, поэтому во втором замере эта метрика не попала в сводку с порогом `< 0.9`.
+
 ### Авторевью PR и браузерная проверка head SHA
 
 Воркфлоу [`review.yml`](.github/workflows/review.yml) и [`browser.yml`](.github/workflows/browser.yml) агент подготовил в `.github/workflows-draft/`, человек перенёс их в `.github/workflows/` (у `opencode-agent` нет права `workflows`). Для обоих воркфлоу действует `pull_request` с событиями `opened`, `synchronize`, `reopened`, `ready_for_review`: новый прогон отменяет устаревший в своей группе по номеру PR.
