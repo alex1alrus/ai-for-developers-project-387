@@ -65,6 +65,8 @@ A bare `#N` in old commits and `CHANGELOG.md` refers to the first repo, not this
 
 `.github/workflows/opencode.yml` runs OpenCode on `/oc` or `/opencode` from a trusted collaborator; see `README.md` → «Агент OpenCode». There `gh` uses `GH_TOKEN` with `issues: write`: read, comment, label and create issues with `gh` (shown as `github-actions[bot]`). Code and PRs are read-only for it; commits and PRs go through OpenCode itself (GitHub App `opencode-agent`).
 
+Before ending the session, commit your changes yourself with a Conventional Commits subject that references the ticket (e.g. `docs: document the agent commit rule (#18)`). Otherwise, `opencode github run` will commit them using the session summary as the commit message.
+
 ### Triage labels
 
 Default labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
