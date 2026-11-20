@@ -3,6 +3,7 @@ experimental = true
 
 [tools]
 hk = "2.13.0"
+jq = "1.8.1"
 node = "24.22.3"
 pitchfork = "2.35.0"
 
