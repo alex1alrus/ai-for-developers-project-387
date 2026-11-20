@@ -174,8 +174,8 @@ jobs:
               )
               since.write_text(
                   f'# Правки после авторевью {last}\n\nКоммиты:\n{listed}\n\n'
-                  'Коммит слияния обычно приносит изменения другой ветки (чаще main), это не правки PR;'
-                  ' правки разрешения конфликтов в нём проверь как правки PR.\n\n'
+                  'Коммит слияния приносит изменения другой ветки. Изменения из main проверь только на конфликты'
+                  ' с правками PR; изменения из другой рабочей ветки и правки разрешения конфликтов проверь как правки PR.\n\n'
                   + (diff.stdout if diff.returncode == 0 else 'Недоступно: diff не загрузился.\n')
               )
           PY
@@ -252,7 +252,8 @@ jobs:
           levels = {'blocker': '🔴', 'major': '🟠', 'minor': '🟡'}
           text = (temp / 'review.txt').read_text().strip()
           # The JSON object, also when the model wraps it in a code block or adds a sentence around it.
-          raw = text if text.lstrip().startswith('[') else text[text.find('{'):text.rfind('}') + 1]
+          unfenced = re.sub(r'^```[\w-]*\s*|\s*```$', '', text)
+          raw = unfenced if unfenced.lstrip().startswith('[') else text[text.find('{'):text.rfind('}') + 1]
           def as_list(value):
               return value if isinstance(value, list) else [value] if isinstance(value, str) and value.strip() else []
 

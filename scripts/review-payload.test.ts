@@ -198,9 +198,12 @@ describe('review payload', () => {
   })
 
   test('an array answer is shown as is, even with a single review object', () => {
-    const { payload: p } = build(JSON.stringify([{ summary: 'ok', findings: [], gaps: [] }]))
-    expect(p.body).toContain('⚠️ Формат ответа модели не распознан')
-    expect(p.body).not.toContain('Подтверждённых дефектов нет.')
+    const array = JSON.stringify([{ summary: 'ok', findings: [], gaps: [] }])
+    for (const text of [array, '```json\n' + array + '\n```']) {
+      const { payload: p } = build(text)
+      expect(p.body).toContain('⚠️ Формат ответа модели не распознан')
+      expect(p.body).not.toContain('Подтверждённых дефектов нет.')
+    }
   })
 
   test('a suggestion block is turned into plain code, so GitHub offers no patch to apply', () => {
