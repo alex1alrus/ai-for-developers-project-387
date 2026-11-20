@@ -150,6 +150,8 @@ scripts/smoke.sh http://localhost:8080                   # сценарий го
 | `hexlet-check.yml` | `push` | автоматические тесты Хекслета | вкладка Actions |
 | `opencode.yml` | `issue_comment`, `pull_request_review_comment` (`types: [created]`) | агент OpenCode по команде в issue или PR | ответ комментарием от `opencode-agent`, прогон в Actions |
 | `triage.yml` | `issues` (`types: [opened]`) | автоматический первичный триаж новых обращений | метки и комментарии в issue, прогон в Actions |
+| `review.yml` (черновик) | `pull_request`: `opened`, `synchronize`, `reopened`, `ready_for_review` | независимое авторевью по `REVIEW.md` | комментарий с SHA в PR, артефакт `review-<sha>` в Actions |
+| `browser.yml` (черновик) | те же события `pull_request` | Playwright на точном head SHA | статус задания и артефакт `browser-<sha>` в Actions |
 
 ### Агент OpenCode (`opencode.yml`)
 
@@ -177,6 +179,14 @@ OpenCode запускается при открытии issue пользоват
 Воркфлоу использует те же модель, права и `GH_TOKEN`, что и `opencode.yml`. Лимит — 30 минут; общая группа `concurrency` по номеру issue не даёт автоматическому и ручному запускам работать над одним обращением одновременно.
 
 Номер issue передаётся в `prompt` через `github.event.issue.number`: в отличие от команды `/oc`, у события `issues` нет комментария, из которого агент берёт контекст. Заголовок и текст в `prompt` не подставляются, агент читает их через `gh`, чтобы текст обращения не становился инструкцией воркфлоу. В `opencode.json` стоит `permission.external_directory: deny`: без этого агент запрашивает доступ к файлам вне репозитория (например, к файлу события), в Actions ответить некому, и прогон висит до тайм-аута.
+
+### Авторевью PR и браузерная проверка head SHA
+
+Черновики лежат в [`.github/workflows-draft/`](.github/workflows-draft/). Они начнут запускаться после того, как человек перенесёт их в `.github/workflows/` коммитом в той же ветке. Для обоих воркфлоу действует `pull_request` с событиями `opened`, `synchronize`, `reopened`, `ready_for_review`: новый прогон отменяет устаревший в своей группе по номеру PR.
+
+- **Авторевью** идёт только для PR из ветки этого репозитория, если автор — `OWNER`, `MEMBER`, `COLLABORATOR` или `opencode-agent[bot]`. Задание за 15 минут собирает через `gh` diff, описание PR, связанные GitHub-тикеты и комментарии, статусы проверяемого SHA и запускает новую сессию `opencode run` (`opencode/gpt-6.2-sol`, секрет `OPENCODE_API_KEY` только на этом шаге). Токен для чтения контекста имеет права `contents`, `issues`, `pull-requests`, `actions`, `checks` и `statuses` только на чтение. Агенту запрещены правка файлов и shell-команды. `REVIEW.md` и `opencode.json` берутся из базовой ветки; пока в ней нет `REVIEW.md`, для первого запуска используются критерии из черновика `review.yml`, который переносит человек.
+- **Публикация** за 5 минут скачивает текст из артефакта `review-<sha>` и оставляет комментарий в PR, если head всё ещё тот же. У задания только `pull-requests: write`, без ключа модели. Авторевью не продолжает сессию реализации и не меняет код; правки по замечаниям запускает человек командой `/oc`.
+- **Браузерная проверка** идёт и для PR из fork, с `contents: read`, без ключа модели. Задание за 20 минут делает checkout `pull_request.head.sha`, сверяет его с `git rev-parse HEAD` и запускает Chromium с `--trace on` и скриншотами. На странице прогона Actions в Artifacts ищите `browser-<sha>`: `head-sha.txt` содержит проверенный SHA, `result.txt` — итог Playwright, `playwright/` — доступные трассы и скриншоты. Сверяйте SHA с последним коммитом PR.
 
 ---
 
