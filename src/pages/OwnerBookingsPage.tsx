@@ -39,7 +39,7 @@ export default function OwnerBookingsPage() {
               <Text c="dimmed">
                 {booking.guestName} · {booking.guestEmail}
               </Text>
-              {booking.status === 'active' && <Text>Действующая</Text>}
+              <Text>{booking.status === 'active' ? 'Действующая' : 'Отменена'}</Text>
             </Card>
           </List.Item>
         )

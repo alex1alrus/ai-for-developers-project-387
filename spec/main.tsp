@@ -78,6 +78,18 @@ model BookingCreated {
   cancellationUrl: string;
 }
 
+/** The secret from the guest's cancellation link, sent in the request body. */
+model CancellationRequest {
+  @minLength(1)
+  cancellationCode: string;
+}
+
+/** The original booking after cancellation, without the secret. */
+model BookingCancelled {
+  ...OmitProperties<Booking, "status">;
+  status: "cancelled";
+}
+
 union ApiErrorCode {
   "VALIDATION_ERROR",
   "INVALID_START",
@@ -147,7 +159,7 @@ interface EventTypes {
 @route("/api/bookings")
 @tag("Bookings")
 interface Bookings {
-  /** Upcoming bookings (`end > now`, ongoing included) of all event types sorted by start. */
+  /** Active and cancelled upcoming bookings (`end > now`, ongoing included) of all event types sorted by start. */
   @get @OpenAPI.operationId("listBookings") list(): Booking[];
 
   /** Reads booking details without changing the booking. The guest code is never returned. */
@@ -161,7 +173,22 @@ interface Bookings {
         @body body: InvalidCancellationCodeError;
       };
 
-  /** Books a free slot; no overlap with any booking of any event type. */
+  /** Cancels an active booking before it starts. The booking is retained and no longer occupies its interval. */
+  @post
+  @route("cancellation")
+  @OpenAPI.operationId("cancelBooking")
+  cancel(@body request: CancellationRequest):
+    | BookingCancelled
+    | {
+        @statusCode statusCode: 400;
+        @body body: ApiError;
+      }
+    | {
+        @statusCode statusCode: 404;
+        @body body: InvalidCancellationCodeError;
+      };
+
+  /** Books a free slot; no overlap with an active booking of any event type. */
   @post
   @OpenAPI.operationId("createBooking")
   create(@body booking: BookingRequest):

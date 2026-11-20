@@ -182,6 +182,9 @@ describe('POST /api/bookings', () => {
   const listBookings = async (app: ReturnType<typeof buildApp>) =>
     (await app.inject({ method: 'GET', url: '/api/bookings' })).json()
 
+  const cancel = (app: ReturnType<typeof buildApp>, cancellationCode?: string) =>
+    app.inject({ method: 'POST', url: '/api/bookings/cancellation', payload: { cancellationCode } })
+
   // Not returning the app: a Fastify instance is thenable, so an async function would await it.
   async function addTypes(app: ReturnType<typeof buildApp>) {
     await createEventType(app, intro)
@@ -254,6 +257,72 @@ describe('POST /api/bookings', () => {
     }
     expect(await listBookings(app)).toContainEqual({ ...booking, status: 'active' })
     expect(await slotStarts(app, 'intro')).not.toContain('2026-11-18T10:30:00.000Z')
+    await app.close()
+  })
+
+  test('cancellation keeps the booking in the owner list and releases a partially overlapping slot of another type', async () => {
+    const app = buildApp()
+    await addTypes(app)
+    const longCall = { ...hour, id: 'long-call', durationMinutes: 90 }
+    await createEventType(app, longCall)
+    const later = await book(app, 'intro', '2026-11-18T12:00:00.000Z', { guestName: 'Вера' })
+    const { cancellationCode: _laterCode, cancellationUrl: _laterUrl, ...active } = later.json()
+
+    const created = await book(app, 'hour', '2026-11-18T10:00:00.000Z')
+    expect(created.statusCode).toBe(201)
+    const { cancellationCode, cancellationUrl: _url, ...booking } = created.json()
+    const overlappingStart = '2026-11-18T10:30:00.000Z' // [10:30, 12:00) overlaps [10:00, 11:00) only in part.
+    expect(await listBookings(app)).toEqual([booking, active])
+    expect(await slotStarts(app, longCall.id)).not.toContain(overlappingStart)
+    const conflict = await book(app, longCall.id, overlappingStart)
+    expect(conflict.statusCode).toBe(409)
+    expect(conflict.json()).toMatchObject({ code: 'BOOKING_CONFLICT' })
+
+    const response = await cancel(app, cancellationCode)
+    const cancelled = { ...booking, status: 'cancelled' }
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(cancelled)
+    expect(await listBookings(app)).toEqual([cancelled, active])
+    expect(await slotStarts(app, longCall.id)).toContain(overlappingStart)
+    const repeated = await cancel(app, cancellationCode)
+    expect(repeated.statusCode).toBeGreaterThanOrEqual(400)
+    expect(repeated.statusCode).toBeLessThan(500)
+    expect(await listBookings(app)).toEqual([cancelled, active])
+
+    const replacement = await book(app, longCall.id, overlappingStart, { guestName: 'Борис' })
+    expect(replacement.statusCode).toBe(201)
+
+    vi.setSystemTime(new Date('2026-11-18T11:00:00.000Z'))
+    expect(await listBookings(app)).toEqual([
+      expect.objectContaining({ id: replacement.json().id, status: 'active' }),
+      active,
+    ])
+    await app.close()
+  })
+
+  test('cancellation requires the correct code and cannot change an active booking at or after its start', async () => {
+    const app = buildApp()
+    await addTypes(app)
+    const start = '2026-11-18T10:00:00.000Z'
+    const created = await book(app, 'hour', start)
+    expect(created.statusCode).toBe(201)
+    const { cancellationCode, cancellationUrl: _url, ...booking } = created.json()
+
+    expect((await cancel(app)).statusCode).toBe(400)
+    expect((await cancel(app, 'invalid')).statusCode).toBe(404)
+    expect(await listBookings(app)).toEqual([booking])
+    expect(await slotStarts(app, 'intro')).not.toContain('2026-11-18T10:30:00.000Z')
+
+    for (const now of [start, '2026-11-18T10:15:00.000Z', '2026-11-18T11:00:00.001Z']) {
+      vi.setSystemTime(new Date(now))
+      const response = await cancel(app, cancellationCode)
+      expect(response.statusCode).toBeGreaterThanOrEqual(400)
+      expect(response.statusCode).toBeLessThan(500)
+      const details = await app.inject({
+        method: 'GET', url: '/api/bookings/cancellation', headers: { 'x-cancellation-code': cancellationCode },
+      })
+      expect(details.json()).toEqual(booking)
+    }
     await app.close()
   })
 
@@ -393,7 +462,7 @@ describe('POST /api/bookings', () => {
   })
 })
 
-describe.each(['/api/event-types', '/api/bookings'])('POST %s with a malformed body', (url) => {
+describe.each(['/api/event-types', '/api/bookings', '/api/bookings/cancellation'])('POST %s with a malformed body', (url) => {
   test.each([
     ['invalid JSON', { 'content-type': 'application/json' }, '{"id":'],
     ['text/plain', { 'content-type': 'text/plain' }, 'hello'],

@@ -9,7 +9,7 @@ paths:
   /api/bookings:
     get:
       operationId: listBookings
-      description: Upcoming bookings (`end > now`, ongoing included) of all event types sorted by start.
+      description: Active and cancelled upcoming bookings (`end > now`, ongoing included) of all event types sorted by start.
       parameters: []
       responses:
         '200':
@@ -24,7 +24,7 @@ paths:
         - Bookings
     post:
       operationId: createBooking
-      description: Books a free slot; no overlap with any booking of any event type.
+      description: Books a free slot; no overlap with an active booking of any event type.
       parameters: []
       responses:
         '201':
@@ -84,6 +84,37 @@ paths:
                 $ref: '#/components/schemas/InvalidCancellationCodeError'
       tags:
         - Bookings
+    post:
+      operationId: cancelBooking
+      description: Cancels an active booking before it starts. The booking is retained and no longer occupies its interval.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingCancelled'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvalidCancellationCodeError'
+      tags:
+        - Bookings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancellationRequest'
   /api/event-types:
     get:
       operationId: listEventTypes
@@ -222,6 +253,45 @@ components:
         status:
           $ref: '#/components/schemas/BookingStatus'
       description: An interval `[start, end)` a guest took for an event type.
+    BookingCancelled:
+      type: object
+      required:
+        - id
+        - eventTypeId
+        - start
+        - guestName
+        - guestEmail
+        - end
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventTypeId:
+          type: string
+        start:
+          type: string
+          format: date-time
+          description: Must be a start of a slot of the event type.
+        guestName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: ^\S(.*\S)?$
+          description: No surrounding whitespace, no line breaks.
+        guestEmail:
+          type: string
+          maxLength: 254
+          pattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
+        end:
+          type: string
+          format: date-time
+          description: "`start` plus the event type's duration."
+        status:
+          type: string
+          enum:
+            - cancelled
+      description: The original booking after cancellation, without the secret.
     BookingCreated:
       type: object
       required:
@@ -298,6 +368,15 @@ components:
       enum:
         - active
         - cancelled
+    CancellationRequest:
+      type: object
+      required:
+        - cancellationCode
+      properties:
+        cancellationCode:
+          type: string
+          minLength: 1
+      description: The secret from the guest's cancellation link, sent in the request body.
     EventType:
       type: object
       required:

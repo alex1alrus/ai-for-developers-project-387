@@ -37,6 +37,28 @@ export type Booking = {
 };
 
 /**
+ * The original booking after cancellation, without the secret.
+ */
+export type BookingCancelled = {
+  id: string;
+  eventTypeId: string;
+  /**
+   * Must be a start of a slot of the event type.
+   */
+  start: string;
+  /**
+   * No surrounding whitespace, no line breaks.
+   */
+  guestName: string;
+  guestEmail: string;
+  /**
+   * `start` plus the event type's duration.
+   */
+  end: string;
+  status: 'cancelled';
+};
+
+/**
  * Only returned to the guest when a booking is created.
  */
 export type BookingCreated = {
@@ -80,6 +102,13 @@ export type BookingRequest = {
 };
 
 export type BookingStatus = 'active' | 'cancelled';
+
+/**
+ * The secret from the guest's cancellation link, sent in the request body.
+ */
+export type CancellationRequest = {
+  cancellationCode: string;
+};
 
 /**
  * A call format the owner offers.
@@ -192,6 +221,35 @@ export type GetBookingForCancellationResponses = {
 };
 
 export type GetBookingForCancellationResponse = GetBookingForCancellationResponses[keyof GetBookingForCancellationResponses];
+
+export type CancelBookingData = {
+  body: CancellationRequest;
+  path?: never;
+  query?: never;
+  url: '/api/bookings/cancellation';
+};
+
+export type CancelBookingErrors = {
+  /**
+   * The server could not understand the request due to invalid syntax.
+   */
+  400: ApiError;
+  /**
+   * The server cannot find the requested resource.
+   */
+  404: InvalidCancellationCodeError;
+};
+
+export type CancelBookingError = CancelBookingErrors[keyof CancelBookingErrors];
+
+export type CancelBookingResponses = {
+  /**
+   * The request has succeeded.
+   */
+  200: BookingCancelled;
+};
+
+export type CancelBookingResponse = CancelBookingResponses[keyof CancelBookingResponses];
 
 export type ListEventTypesData = {
   body?: never;

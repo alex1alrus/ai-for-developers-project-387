@@ -16,11 +16,20 @@ export function buildApp({ webRoot = join(import.meta.dirname, '../dist') } = {}
   const bookings: Booking[] = []
   const bookingsByCancellationCode = new Map<string, Booking>()
 
+  const occupiedIntervals = () => bookings.filter((booking) => booking.status === 'active')
+
   /** The event type with `id`, or `undefined` after answering 404 EVENT_TYPE_NOT_FOUND. */
   function findEventType(id: string, reply: FastifyReply) {
     const eventType = eventTypes.find((eventType) => eventType.id === id)
     if (!eventType) reply.code(404).send({ code: 'EVENT_TYPE_NOT_FOUND', message: `Event type "${id}" not found` })
     return eventType
+  }
+
+  function findBookingForCancellation(code: string | undefined, reply: FastifyReply) {
+    reply.header('Cache-Control', 'no-store')
+    const booking = code === undefined ? undefined : bookingsByCancellationCode.get(code)
+    if (!booking) reply.code(404).send({ code: 'INVALID_CANCELLATION_CODE', message: 'Invalid cancellation code' })
+    return booking
   }
 
   const serviceHandlers: RouteHandlers = {
@@ -39,21 +48,25 @@ export function buildApp({ webRoot = join(import.meta.dirname, '../dist') } = {}
     listSlots(req, reply) {
       const eventType = findEventType(req.params.id, reply)
       if (!eventType) return
-      reply.code(200).send(freeSlots(eventType.durationMinutes, bookings, new Date()))
+      reply.code(200).send(freeSlots(eventType.durationMinutes, occupiedIntervals(), new Date()))
     },
     listBookings(_req, reply) {
       const now = Date.now()
       reply.code(200).send(bookings.filter((b) => Date.parse(b.end) > now).toSorted((a, b) => a.start.localeCompare(b.start)))
     },
     getBookingForCancellation(req, reply) {
-      reply.header('Cache-Control', 'no-store')
-      const code = req.headers['x-cancellation-code']
-      const booking = code === undefined ? undefined : bookingsByCancellationCode.get(code)
-      if (!booking) {
-        reply.code(404).send({ code: 'INVALID_CANCELLATION_CODE', message: 'Invalid cancellation code' })
+      const booking = findBookingForCancellation(req.headers['x-cancellation-code'], reply)
+      if (booking) reply.code(200).send(booking)
+    },
+    cancelBooking(req, reply) {
+      const booking = findBookingForCancellation(req.body.cancellationCode, reply)
+      if (!booking) return
+      if (booking.status !== 'active' || Date.parse(booking.start) <= Date.now()) {
+        reply.code(400).send({ code: 'VALIDATION_ERROR', message: 'Booking cannot be cancelled' })
         return
       }
-      reply.code(200).send(booking)
+      booking.status = 'cancelled'
+      reply.code(200).send({ ...booking, status: booking.status })
     },
     // Synchronous: no await between the conflict check and the push, so concurrent requests cannot both pass.
     createBooking(req, reply) {
@@ -67,8 +80,8 @@ export function buildApp({ webRoot = join(import.meta.dirname, '../dist') } = {}
         reply.code(400).send({ code: 'INVALID_START', message: `${start} is not a slot start of "${eventTypeId}"` })
         return
       }
-      // The overlap rule itself lives in `freeSlots`: a slot that overlaps any booking is not free.
-      if (!freeSlots(eventType.durationMinutes, bookings, now).some((free) => free.start === slot.start)) {
+      // The overlap rule itself lives in `freeSlots`: a slot that overlaps an occupied interval is not free.
+      if (!freeSlots(eventType.durationMinutes, occupiedIntervals(), now).some((free) => free.start === slot.start)) {
         reply.code(409).send({ code: 'BOOKING_CONFLICT', message: `${start} overlaps an existing booking` })
         return
       }

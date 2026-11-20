@@ -78,6 +78,57 @@ export const BookingSchema = {
   description: 'An interval `[start, end)` a guest took for an event type.'
 } as const;
 
+export const BookingCancelledSchema = {
+  type: 'object',
+  required: [
+    'id',
+    'eventTypeId',
+    'start',
+    'guestName',
+    'guestEmail',
+    'end',
+    'status'
+  ],
+  properties: {
+    id: {
+      type: 'string',
+      format: 'uuid'
+    },
+    eventTypeId: {
+      type: 'string'
+    },
+    start: {
+      type: 'string',
+      format: 'date-time',
+      description: 'Must be a start of a slot of the event type.'
+    },
+    guestName: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 100,
+      pattern: '^\\S(.*\\S)?$',
+      description: 'No surrounding whitespace, no line breaks.'
+    },
+    guestEmail: {
+      type: 'string',
+      maxLength: 254,
+      pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$'
+    },
+    end: {
+      type: 'string',
+      format: 'date-time',
+      description: '`start` plus the event type\'s duration.'
+    },
+    status: {
+      type: 'string',
+      enum: [
+        'cancelled'
+      ]
+    }
+  },
+  description: 'The original booking after cancellation, without the secret.'
+} as const;
+
 export const BookingCreatedSchema = {
   type: 'object',
   required: [
@@ -177,6 +228,20 @@ export const BookingStatusSchema = {
     'active',
     'cancelled'
   ]
+} as const;
+
+export const CancellationRequestSchema = {
+  type: 'object',
+  required: [
+    'cancellationCode'
+  ],
+  properties: {
+    cancellationCode: {
+      type: 'string',
+      minLength: 1
+    }
+  },
+  description: 'The secret from the guest\'s cancellation link, sent in the request body.'
 } as const;
 
 export const EventTypeSchema = {

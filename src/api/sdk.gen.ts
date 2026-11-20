@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateBookingData, CreateBookingErrors, CreateBookingResponses, CreateEventTypeData, CreateEventTypeErrors, CreateEventTypeResponses, GetBookingForCancellationData, GetBookingForCancellationErrors, GetBookingForCancellationResponses, ListBookingsData, ListBookingsResponses, ListEventTypesData, ListEventTypesResponses, ListSlotsData, ListSlotsErrors, ListSlotsResponses } from './types.gen';
+import type { CancelBookingData, CancelBookingErrors, CancelBookingResponses, CreateBookingData, CreateBookingErrors, CreateBookingResponses, CreateEventTypeData, CreateEventTypeErrors, CreateEventTypeResponses, GetBookingForCancellationData, GetBookingForCancellationErrors, GetBookingForCancellationResponses, ListBookingsData, ListBookingsResponses, ListEventTypesData, ListEventTypesResponses, ListSlotsData, ListSlotsErrors, ListSlotsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
   /**
@@ -19,12 +19,12 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 };
 
 /**
- * Upcoming bookings (`end > now`, ongoing included) of all event types sorted by start.
+ * Active and cancelled upcoming bookings (`end > now`, ongoing included) of all event types sorted by start.
  */
 export const listBookings = <ThrowOnError extends boolean = false>(options?: Options<ListBookingsData, ThrowOnError>): RequestResult<ListBookingsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListBookingsResponses, unknown, ThrowOnError>({ url: '/api/bookings', ...options });
 
 /**
- * Books a free slot; no overlap with any booking of any event type.
+ * Books a free slot; no overlap with an active booking of any event type.
  */
 export const createBooking = <ThrowOnError extends boolean = false>(options: Options<CreateBookingData, ThrowOnError>): RequestResult<CreateBookingResponses, CreateBookingErrors, ThrowOnError> => (options.client ?? client).post<CreateBookingResponses, CreateBookingErrors, ThrowOnError>({
   url: '/api/bookings',
@@ -39,6 +39,18 @@ export const createBooking = <ThrowOnError extends boolean = false>(options: Opt
  * Reads booking details without changing the booking. The guest code is never returned.
  */
 export const getBookingForCancellation = <ThrowOnError extends boolean = false>(options?: Options<GetBookingForCancellationData, ThrowOnError>): RequestResult<GetBookingForCancellationResponses, GetBookingForCancellationErrors, ThrowOnError> => (options?.client ?? client).get<GetBookingForCancellationResponses, GetBookingForCancellationErrors, ThrowOnError>({ url: '/api/bookings/cancellation', ...options });
+
+/**
+ * Cancels an active booking before it starts. The booking is retained and no longer occupies its interval.
+ */
+export const cancelBooking = <ThrowOnError extends boolean = false>(options: Options<CancelBookingData, ThrowOnError>): RequestResult<CancelBookingResponses, CancelBookingErrors, ThrowOnError> => (options.client ?? client).post<CancelBookingResponses, CancelBookingErrors, ThrowOnError>({
+  url: '/api/bookings/cancellation',
+  ...options,
+  headers: {
+    'Content-Type': 'application/json',
+    ...options.headers
+  }
+});
 
 /**
  * All event types sorted by title.
