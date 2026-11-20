@@ -23,6 +23,7 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
           BODY: ${{ github.event.pull_request.body }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
         shell: python3 {0}
         run: |
           import os, re, sys
@@ -32,9 +33,14 @@ jobs:
           if not re.fullmatch(r'(feat|fix|docs|test|refactor|perf|build|ci|chore|revert)(\([\w./-]+\))?!?: \S.*', title):
               errors.append(f'Заголовок не по Conventional Commits: "{title}". Пример: "feat: cancel a booking (#10)".')
 
-          # release-please writes its own body; its title is still checked.
-          if not os.environ['HEAD_REF'].startswith('release-please--'):
+          # release-please writes its own body; its title is still checked. Only its own PRs
+          # (branch prefix and the github-actions bot as author) skip the body check.
+          release = os.environ['HEAD_REF'].startswith('release-please--') and os.environ['AUTHOR'] == 'github-actions[bot]'
+          if not release:
               body = re.sub(r'<!--.*?-->', '', os.environ['BODY'] or '', flags=re.S)
+              # Headings and Closes lines inside fenced code blocks are examples, not sections;
+              # the block itself still fills its section (command output in «Проверки»).
+              body = re.sub(r'^(```|~~~).*?^\1[^\n]*$', '[code]', body, flags=re.S | re.M)
               parts = re.split(r'^## +(.+?)\s*$', body, flags=re.M)
               sections = {name: text.strip() for name, text in zip(parts[1::2], parts[2::2])}
               template = ['Исходное обращение', 'Спецификация', 'Тикеты', 'Согласование человеком',
@@ -42,8 +48,8 @@ jobs:
               for name in template:
                   if not sections.get(name):
                       errors.append(f'Раздел «{name}» из .github/pull_request_template.md отсутствует или пуст.')
-              if not re.search(r'(?i)\b(closes|fixes|resolves) #\d+', body):
-                  errors.append('Нет строки "Closes #N" для закрываемой задачи.')
+              if not re.search(r'(?im)^\s*[-*]?\s*(closes|fixes|resolves) #\d+\b', sections.get('Тикеты', '')):
+                  errors.append('В разделе «Тикеты» нет отдельной строки "Closes #N" для закрываемой задачи.')
 
           for error in errors:
               print(f'::error::{error}')
