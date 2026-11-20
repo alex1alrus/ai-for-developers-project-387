@@ -3,7 +3,7 @@ name: opencode
 # Match the job filter here so even an admitted run cancelled before it reaches
 # a runner leaves a budget entry. Filtered comments get a different title.
 run-name: >-
-  ${{ (startsWith(format('{0} ', github.event.comment.body), '/oc ') || startsWith(format('{0} ', github.event.comment.body), '/opencode ')) &&
+  ${{ (startsWith(github.event.comment.body, '/oc') || startsWith(github.event.comment.body, '/opencode')) &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
       github.event.comment.user.type != 'Bot' &&
       (github.event.pull_request.number || github.event.issue.pull_request) &&
@@ -25,7 +25,7 @@ env:
 jobs:
   opencode:
     if: >-
-      (startsWith(format('{0} ', github.event.comment.body), '/oc ') || startsWith(format('{0} ', github.event.comment.body), '/opencode ')) &&
+      (startsWith(github.event.comment.body, '/oc') || startsWith(github.event.comment.body, '/opencode')) &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
       github.event.comment.user.type != 'Bot'
     runs-on: ubuntu-latest
