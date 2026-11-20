@@ -88,6 +88,16 @@ describe('pr-check', () => {
     expect(check({ body }).ok).toBe(false)
   })
 
+  test('a Closes line may follow other lines in «Тикеты»', () => {
+    expect(check({ body: sections('Part of #5\nCloses #10') }).ok).toBe(true)
+    expect(check({ body: sections('Closes #10abc') }).ok).toBe(false)
+  })
+
+  test('every problem is reported', () => {
+    const errors = check({ title: 'bad', body: sections().replace('## Риск', '## Риски') }).errors
+    expect(errors.match(/::error::/g)).toHaveLength(2)
+  })
+
   test('Closes #N must be its own line in «Тикеты»', () => {
     expect(check({ body: sections('-') + '\nCloses #10\n' }).errors).toContain('В разделе «Тикеты»')
     expect(check({ body: sections('Fixes the bug, see Closes #10 later') }).ok).toBe(false)
@@ -110,6 +120,35 @@ describe('pr-check', () => {
     // Two blocks with real sections between them: those sections stay.
     const between = sections().replace('#6', '```\na\n```').replace('Slot release', '```\nb\n```\nSlot release')
     expect(check({ body: between }).ok).toBe(true)
+    expect(check({ body: between.replace(/\n/g, '\r\n') }).ok).toBe(true)
+  })
+
+  test('every fenced block is closed only by its own fence', () => {
+    // Each block hides one heading; both must be neutralised.
+    const two = sections().replace('## Риск', '```\n## Риск\n```\n## Риски').replace('## Откат', '~~~\n## Откат\n~~~\n## Откаты')
+    expect(check({ body: two }).errors).toMatch(/«Риск»[\s\S]*«Откат»/)
+    expect(check({ body: two.replace(/\n/g, '\r\n') }).errors).toMatch(/«Риск»[\s\S]*«Откат»/)
+    // A ```` block with an inner ``` and a ~~~ block with a ~~~x line keep their headings inside.
+    expect(check({ body: sections().replace('## Риск', '````md\n```\n## Риск\n```\n````\n## Риски') }).ok).toBe(false)
+    expect(check({ body: sections().replace('## Риск', '~~~\n~~~x\n## Риск\n~~~\n## Риски') }).ok).toBe(false)
+    // A fence must start the line, and a line like ``` a ``` is inline code, not a fence.
+    const revertBlock = sections().replace('`git revert` of the squash commit.', '```\ngit revert\n```')
+    expect(check({ body: revertBlock.replace('## Риск\n', 'see ``` x\n## Риск\n') }).ok).toBe(true)
+    expect(check({ body: revertBlock.replace('## Риск\n', '``` a ```\n## Риск\n') }).ok).toBe(true)
+    // A ```` opener is one fence, not ``` plus an info string, so an inner ``` does not close it.
+    const inner = sections().replace('## Откат', '````\n```\n## Откат\n```\n````\n## Откаты')
+    expect(check({ body: inner }).errors).toContain('«Откат»')
+    expect(check({ body: inner.replace(/````/g, '~~~~').replace(/```/g, '~~~') }).errors).toContain('«Откат»')
+  })
+
+  test('HTML comments are hidden, also unclosed ones, but not inside code', () => {
+    expect(check({ body: sections().replace('`git revert` of the squash commit.', '<!-- hint') }).errors).toContain('«Откат»')
+    // A stray `<!--` inside a line is text and hides nothing; an inline comment is hidden.
+    expect(check({ body: sections().replace('#6', 'unclosed `<!--` is text').replace('Slot', 'Slot <!-- n -->') }).ok).toBe(true)
+    expect(check({ body: sections().replace('#8', 'x <!-- note -->') }).ok).toBe(true)
+    expect(check({ body: sections().replace('#8', '<!-- only a note -->') }).errors).toContain('«Спецификация»')
+    const inCode = sections().replace('#8', '```\n<!-- not a comment\n```')
+    expect(check({ body: inCode }).ok).toBe(true)
   })
 
   test('only release-please PRs by the bot skip the body check', () => {

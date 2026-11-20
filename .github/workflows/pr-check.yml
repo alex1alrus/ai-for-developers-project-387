@@ -37,10 +37,17 @@ jobs:
           # (branch prefix and the github-actions bot as author) skip the body check.
           release = os.environ['HEAD_REF'].startswith('release-please--') and os.environ['AUTHOR'] == 'github-actions[bot]'
           if not release:
-              body = re.sub(r'<!--.*?-->', '', os.environ['BODY'] or '', flags=re.S)
+              body = os.environ['BODY'] or ''
               # Headings and Closes lines inside fenced code blocks are examples, not sections;
-              # the block itself still fills its section (command output in «Проверки»).
-              body = re.sub(r'^(```|~~~).*?^\1[^\n]*$', '[code]', body, flags=re.S | re.M)
+              # the block itself still fills its section (command output in «Проверки»). A block
+              # closes only on a line of the same fence (``` or ~~~, at least as long), so an inner
+              # fence of a ```` block stays inside it. Fences go first, so `<!--` in code is code.
+              body = re.sub(r'^(?:(`{3,})(?!`)[^\n`]*|(~{3,})(?!~)[^\n]*)\n.*?^(?(1)\1`*|\2~*)[ \t\r]*$', '[code]', body, flags=re.S | re.M)
+              # HTML comments are hidden by GitHub. One that starts a line may span lines, and if
+              # it is never closed it hides the rest of the body; inside a line only a comment
+              # closed on the same line is hidden, a stray `<!--` there is plain text.
+              body = re.sub(r'^[ \t]*<!--.*?(?:-->|\Z)', '', body, flags=re.S | re.M)
+              body = re.sub(r'<!--[^\n]*?-->', '', body)
               parts = re.split(r'^## +(.+?)\s*$', body, flags=re.M)
               sections = {name: text.strip() for name, text in zip(parts[1::2], parts[2::2])}
               template = ['Исходное обращение', 'Спецификация', 'Тикеты', 'Согласование человеком',
