@@ -3,6 +3,7 @@ import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router'
 import { client } from '../api/client.gen.ts'
+import { cssVariablesResolver, theme } from '../theme.ts'
 
 // jsdom lacks these browser APIs; Mantine needs them.
 window.matchMedia ??= (query: string) =>
@@ -26,7 +27,7 @@ client.setConfig({ baseUrl: window.location.origin })
 
 export function renderAt(path: string, ui: ReactNode) {
   return render(
-    <MantineProvider env="test">
+    <MantineProvider env="test" theme={theme} cssVariablesResolver={cssVariablesResolver}>
       <MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>
     </MantineProvider>,
   )
