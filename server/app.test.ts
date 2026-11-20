@@ -182,26 +182,39 @@ describe('POST /api/bookings', () => {
   const listBookings = async (app: ReturnType<typeof buildApp>) =>
     (await app.inject({ method: 'GET', url: '/api/bookings' })).json()
 
+  const cancel = (app: ReturnType<typeof buildApp>, cancellationCode?: string) =>
+    app.inject({ method: 'POST', url: '/api/bookings/cancellation', payload: { cancellationCode } })
+
   // Not returning the app: a Fastify instance is thenable, so an async function would await it.
   async function addTypes(app: ReturnType<typeof buildApp>) {
     await createEventType(app, intro)
     await createEventType(app, hour)
   }
 
-  test('books a free slot: server sets id and end from the duration', async () => {
+  test('books a free slot and issues a secret cancellation link only to the guest', async () => {
     const app = buildApp()
     await addTypes(app)
 
     const res = await book(app, 'hour', '2026-11-18T10:00:00.000Z')
 
     expect(res.statusCode).toBe(201)
-    expect(res.json()).toEqual({
+    const { cancellationCode, cancellationUrl, ...booking } = res.json()
+    expect(booking).toEqual({
       id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
       eventTypeId: 'hour',
       start: '2026-11-18T10:00:00.000Z',
       end: '2026-11-18T11:00:00.000Z',
+      status: 'active',
       ...guest,
     })
+    expect(cancellationCode).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(cancellationUrl).toBe(`/cancel#${cancellationCode}`)
+    expect(res.headers['cache-control']).toBe('no-store')
+
+    const other = await book(app, 'intro', '2026-11-18T11:00:00.000Z')
+    expect(other.statusCode).toBe(201)
+    expect(other.json().cancellationCode).not.toBe(cancellationCode)
+    expect((await listBookings(app))[0]).toEqual(booking)
     await app.close()
   })
 
@@ -215,6 +228,130 @@ describe('POST /api/bookings', () => {
     expect(res.statusCode).toBe(409)
     expect(res.json()).toMatchObject({ code: 'BOOKING_CONFLICT', message: expect.any(String) })
     expect((await listBookings(app)).map((b: { guestName: string }) => b.guestName)).toEqual(['Анна'])
+    await app.close()
+  })
+
+  test('only the correct code opens booking details, and reading them leaves the slot occupied', async () => {
+    const app = buildApp()
+    await addTypes(app)
+    await book(app, 'hour', '2026-11-18T09:00:00.000Z', { guestName: 'Борис' })
+    const res = await book(app, 'hour', '2026-11-18T10:00:00.000Z')
+    const { cancellationCode, cancellationUrl: _url, ...booking } = res.json()
+
+    const details = (code?: string) => app.inject({
+      method: 'GET',
+      url: '/api/bookings/cancellation',
+      headers: code === undefined ? {} : { 'x-cancellation-code': code },
+    })
+    for (const code of [undefined, 'invalid', 'a'.repeat(43)]) {
+      const invalid = await details(code)
+      expect(invalid.statusCode).toBe(404)
+      expect(invalid.json()).toEqual({ code: 'INVALID_CANCELLATION_CODE', message: expect.any(String) })
+      expect(invalid.headers['cache-control']).toBe('no-store')
+    }
+    for (let read = 0; read < 2; read++) {
+      const found = await details(cancellationCode)
+      expect(found.statusCode).toBe(200)
+      expect(found.headers['cache-control']).toBe('no-store')
+      expect(found.json()).toEqual({ ...booking, status: 'active' })
+    }
+    expect(await listBookings(app)).toContainEqual({ ...booking, status: 'active' })
+    expect(await slotStarts(app, 'intro')).not.toContain('2026-11-18T10:30:00.000Z')
+    await app.close()
+  })
+
+  test('cancellation keeps the booking in the owner list and releases a partially overlapping slot of another type', async () => {
+    const app = buildApp()
+    await addTypes(app)
+    const longCall = { ...hour, id: 'long-call', durationMinutes: 90 }
+    await createEventType(app, longCall)
+    const later = await book(app, 'intro', '2026-11-18T12:00:00.000Z', { guestName: 'Вера' })
+    const { cancellationCode: _laterCode, cancellationUrl: _laterUrl, ...active } = later.json()
+
+    const created = await book(app, 'hour', '2026-11-18T10:00:00.000Z')
+    expect(created.statusCode).toBe(201)
+    const { cancellationCode, cancellationUrl: _url, ...booking } = created.json()
+    const overlappingStart = '2026-11-18T10:30:00.000Z' // [10:30, 12:00) overlaps [10:00, 11:00) only in part.
+    expect(await listBookings(app)).toEqual([booking, active])
+    expect(await slotStarts(app, longCall.id)).not.toContain(overlappingStart)
+    const conflict = await book(app, longCall.id, overlappingStart)
+    expect(conflict.statusCode).toBe(409)
+    expect(conflict.json()).toMatchObject({ code: 'BOOKING_CONFLICT' })
+
+    const response = await cancel(app, cancellationCode)
+    const cancelled = { ...booking, status: 'cancelled' }
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(cancelled)
+    expect(await listBookings(app)).toEqual([cancelled, active])
+    expect(await slotStarts(app, longCall.id)).toContain(overlappingStart)
+    const replacement = await book(app, longCall.id, overlappingStart, { guestName: 'Борис' })
+    expect(replacement.statusCode).toBe(201)
+
+    vi.setSystemTime(new Date('2026-11-18T11:00:00.000Z'))
+    expect(await listBookings(app)).toEqual([
+      expect.objectContaining({ id: replacement.json().id, status: 'active' }),
+      active,
+    ])
+    await app.close()
+  })
+
+  test('an already cancelled booking takes precedence over time, and bad codes cannot change any booking', async () => {
+    const app = buildApp()
+    await addTypes(app)
+    const created = await book(app, 'hour', '2026-11-18T10:00:00.000Z')
+    expect(created.statusCode).toBe(201)
+    const { cancellationCode, cancellationUrl: _url, ...booking } = created.json()
+    const overlap = '2026-11-18T10:30:00.000Z'
+    expect(await slotStarts(app, 'intro')).not.toContain(overlap)
+
+    const missing = await cancel(app)
+    expect(missing.statusCode).toBe(400)
+    expect(missing.json()).toEqual({ code: 'VALIDATION_ERROR', message: expect.any(String) })
+    for (const code of ['', 'invalid', 'a'.repeat(43)]) {
+      const wrong = await cancel(app, code)
+      expect(wrong.statusCode, JSON.stringify(code)).toBe(404)
+      expect(wrong.json()).toEqual({ code: 'INVALID_CANCELLATION_CODE', message: expect.any(String) })
+    }
+    expect(await listBookings(app)).toEqual([booking])
+    expect(await slotStarts(app, 'intro')).not.toContain(overlap)
+    expect((await cancel(app, cancellationCode)).statusCode).toBe(200)
+
+    for (const now of ['2026-11-18T09:45:00.000Z', '2026-11-18T10:15:00.000Z']) {
+      vi.setSystemTime(new Date(now))
+      const repeated = await cancel(app, cancellationCode)
+      expect(repeated.statusCode, now).toBe(409)
+      expect(repeated.json(), now).toEqual({ code: 'BOOKING_ALREADY_CANCELLED', message: expect.any(String) })
+      expect(await listBookings(app)).toEqual([{ ...booking, status: 'cancelled' }])
+      expect(await slotStarts(app, 'intro')).toContain(overlap)
+    }
+    await app.close()
+  })
+
+  test('cancellation rejects an active booking at its start, during the call, and after its end', async () => {
+    const app = buildApp()
+    await addTypes(app)
+    const start = '2026-11-18T10:00:00.000Z'
+    const created = await book(app, 'hour', start)
+    expect(created.statusCode).toBe(201)
+    const { cancellationCode, cancellationUrl: _url, ...booking } = created.json()
+
+    for (const [now, listed] of [
+      [start, true],
+      ['2026-11-18T10:15:00.000Z', true],
+      ['2026-11-18T11:00:00.001Z', false],
+    ] as const) {
+      vi.setSystemTime(new Date(now))
+      const before = await slotStarts(app, 'intro')
+      const response = await cancel(app, cancellationCode)
+      expect(response.statusCode, now).toBe(409)
+      expect(response.json(), now).toEqual({ code: 'BOOKING_ALREADY_STARTED', message: expect.any(String) })
+      const details = await app.inject({
+        method: 'GET', url: '/api/bookings/cancellation', headers: { 'x-cancellation-code': cancellationCode },
+      })
+      expect(details.json()).toEqual(booking)
+      expect(await listBookings(app)).toEqual(listed ? [booking] : [])
+      expect(await slotStarts(app, 'intro')).toEqual(before)
+    }
     await app.close()
   })
 
@@ -241,7 +378,8 @@ describe('POST /api/bookings', () => {
     expect(responses.map((res) => res.statusCode).toSorted()).toEqual([201, 409])
     const stored = await listBookings(app)
     expect(stored).toHaveLength(1)
-    expect(stored[0]).toEqual(responses.find((res) => res.statusCode === 201)?.json())
+    const { cancellationCode: _code, cancellationUrl: _url, ...created } = responses.find((res) => res.statusCode === 201)!.json()
+    expect(stored[0]).toEqual(created)
     const introStarts = await slotStarts(app, 'intro')
     const freeEdges = ['2026-11-18T10:00:00.000Z', '2026-11-18T11:00:00.000Z'].filter((s) => introStarts.includes(s))
     expect(freeEdges).toHaveLength(1) // one booking stored: two would block both edges
@@ -353,7 +491,7 @@ describe('POST /api/bookings', () => {
   })
 })
 
-describe.each(['/api/event-types', '/api/bookings'])('POST %s with a malformed body', (url) => {
+describe.each(['/api/event-types', '/api/bookings', '/api/bookings/cancellation'])('POST %s with a malformed body', (url) => {
   test.each([
     ['invalid JSON', { 'content-type': 'application/json' }, '{"id":'],
     ['text/plain', { 'content-type': 'text/plain' }, 'hello'],
