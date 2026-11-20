@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/alex1alrus/ai-for-developers-project-387/compare/v1.3.0...v1.3.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* raise text contrast to WCAG AA ([#41](https://github.com/alex1alrus/ai-for-developers-project-387/issues/41)) ([#54](https://github.com/alex1alrus/ai-for-developers-project-387/issues/54)) ([458430a](https://github.com/alex1alrus/ai-for-developers-project-387/commit/458430a79f19b1deddcfd6e4afbbbf27fd4c4038))
+* serve real discovery files and a page description ([#42](https://github.com/alex1alrus/ai-for-developers-project-387/issues/42), [#43](https://github.com/alex1alrus/ai-for-developers-project-387/issues/43), [#44](https://github.com/alex1alrus/ai-for-developers-project-387/issues/44), [#46](https://github.com/alex1alrus/ai-for-developers-project-387/issues/46)) ([#53](https://github.com/alex1alrus/ai-for-developers-project-387/issues/53)) ([fab6226](https://github.com/alex1alrus/ai-for-developers-project-387/commit/fab62262f800c334ef640cc5ffc23c7de83cf1c0))
+
 ## [1.3.0](https://github.com/alex1alrus/ai-for-developers-project-387/compare/v1.2.0...v1.3.0) (2026-11-20)
 
 
