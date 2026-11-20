@@ -1,9 +1,10 @@
-import { Stack, Text } from '@mantine/core'
-import type { Booking, EventType } from '../../api'
+import { Anchor, Stack, Text } from '@mantine/core'
+import { Link } from 'react-router'
+import type { BookingCreated, EventType } from '../../api'
 import { dayMonth, time, timeZoneLabel } from '../../format.ts'
 import { CatalogLink } from './CatalogLink.tsx'
 
-export function BookingConfirmation({ eventType, booking }: { eventType: EventType; booking: Booking }) {
+export function BookingConfirmation({ eventType, booking }: { eventType: EventType; booking: BookingCreated }) {
   const start = new Date(booking.start)
   return (
     <Stack align="start" gap="xs">
@@ -16,6 +17,7 @@ export function BookingConfirmation({ eventType, booking }: { eventType: EventTy
       </Text>
       <Text>{booking.guestName}</Text>
       <Text>{booking.guestEmail}</Text>
+      <Anchor component={Link} to={booking.cancellationUrl}>Ссылка для отмены записи</Anchor>
       <CatalogLink />
     </Stack>
   )

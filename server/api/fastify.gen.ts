@@ -2,7 +2,7 @@
 
 import type { RouteHandler } from 'fastify';
 
-import type { CreateBookingData, CreateBookingErrors, CreateBookingResponses, CreateEventTypeData, CreateEventTypeErrors, CreateEventTypeResponses, ListBookingsResponses, ListEventTypesResponses, ListSlotsData, ListSlotsErrors, ListSlotsResponses } from './types.gen.ts';
+import type { CreateBookingData, CreateBookingErrors, CreateBookingResponses, CreateEventTypeData, CreateEventTypeErrors, CreateEventTypeResponses, GetBookingForCancellationData, GetBookingForCancellationErrors, GetBookingForCancellationResponses, ListBookingsResponses, ListEventTypesResponses, ListSlotsData, ListSlotsErrors, ListSlotsResponses } from './types.gen.ts';
 
 export type RouteHandlers = {
   listBookings: RouteHandler<{
@@ -11,6 +11,10 @@ export type RouteHandlers = {
   createBooking: RouteHandler<{
     Body: CreateBookingData['body'];
     Reply: CreateBookingErrors & CreateBookingResponses;
+  }>;
+  getBookingForCancellation: RouteHandler<{
+    Headers?: GetBookingForCancellationData['headers'];
+    Reply: GetBookingForCancellationErrors & GetBookingForCancellationResponses;
   }>;
   listEventTypes: RouteHandler<{
     Reply: ListEventTypesResponses;

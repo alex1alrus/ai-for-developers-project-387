@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { RouteHandlers } from './api/fastify.gen.ts'
 import type { ApiError, Booking, EventType } from './api/types.gen.ts'
 import { freeSlots } from './slots.ts'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 
 const specification = join(import.meta.dirname, '../spec/generated/openapi.yaml')
 
@@ -14,6 +14,7 @@ export function buildApp({ webRoot = join(import.meta.dirname, '../dist') } = {}
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' })
   const eventTypes: EventType[] = []
   const bookings: Booking[] = []
+  const bookingsByCancellationCode = new Map<string, Booking>()
 
   /** The event type with `id`, or `undefined` after answering 404 EVENT_TYPE_NOT_FOUND. */
   function findEventType(id: string, reply: FastifyReply) {
@@ -44,9 +45,19 @@ export function buildApp({ webRoot = join(import.meta.dirname, '../dist') } = {}
       const now = Date.now()
       reply.code(200).send(bookings.filter((b) => Date.parse(b.end) > now).toSorted((a, b) => a.start.localeCompare(b.start)))
     },
+    getBookingForCancellation(req, reply) {
+      reply.header('Cache-Control', 'no-store')
+      const code = req.headers['x-cancellation-code']
+      const booking = code === undefined ? undefined : bookingsByCancellationCode.get(code)
+      if (!booking) {
+        reply.code(404).send({ code: 'INVALID_CANCELLATION_CODE', message: 'Invalid cancellation code' })
+        return
+      }
+      reply.code(200).send(booking)
+    },
     // Synchronous: no await between the conflict check and the push, so concurrent requests cannot both pass.
     createBooking(req, reply) {
-      const { eventTypeId, start } = req.body
+      const { eventTypeId, start, guestName, guestEmail } = req.body
       const eventType = findEventType(eventTypeId, reply)
       if (!eventType) return
       const now = new Date()
@@ -61,9 +72,11 @@ export function buildApp({ webRoot = join(import.meta.dirname, '../dist') } = {}
         reply.code(409).send({ code: 'BOOKING_CONFLICT', message: `${start} overlaps an existing booking` })
         return
       }
-      const booking: Booking = { ...req.body, id: randomUUID(), start: slot.start, end: slot.end }
+      const booking = { id: randomUUID(), eventTypeId, guestName, guestEmail, ...slot, status: 'active' } satisfies Booking
+      const cancellationCode = randomBytes(32).toString('base64url')
       bookings.push(booking)
-      reply.code(201).send(booking)
+      bookingsByCancellationCode.set(cancellationCode, booking)
+      reply.header('Cache-Control', 'no-store').code(201).send({ ...booking, cancellationCode, cancellationUrl: `/cancel#${cancellationCode}` })
     },
   }
 

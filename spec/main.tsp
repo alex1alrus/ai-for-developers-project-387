@@ -53,6 +53,11 @@ model BookingRequest {
   guestEmail: string;
 }
 
+union BookingStatus {
+  "active",
+  "cancelled",
+}
+
 /** An interval `[start, end)` a guest took for an event type. */
 model Booking {
   @format("uuid") id: string;
@@ -60,6 +65,17 @@ model Booking {
 
   /** `start` plus the event type's duration. */
   end: utcDateTime;
+  status: BookingStatus;
+}
+
+/** Only returned to the guest when a booking is created. */
+model BookingCreated {
+  ...OmitProperties<Booking, "status">;
+  status: "active";
+  cancellationCode: string;
+
+  /** A same-origin link with the secret code in its fragment. */
+  cancellationUrl: string;
 }
 
 union ApiErrorCode {
@@ -68,6 +84,7 @@ union ApiErrorCode {
   "EVENT_TYPE_NOT_FOUND",
   "EVENT_TYPE_EXISTS",
   "BOOKING_CONFLICT",
+  "INVALID_CANCELLATION_CODE",
 
   // Unknown path under `/api`, or a non-GET request outside it.
   "NOT_FOUND",
@@ -79,6 +96,12 @@ model ApiError {
 
   /** English text for developers; the UI builds user text from `code`. */
   message: string;
+}
+
+@error
+model InvalidCancellationCodeError {
+  ...OmitProperties<ApiError, "code">;
+  code: "INVALID_CANCELLATION_CODE";
 }
 
 @route("/api/event-types")
@@ -127,13 +150,24 @@ interface Bookings {
   /** Upcoming bookings (`end > now`, ongoing included) of all event types sorted by start. */
   @get @OpenAPI.operationId("listBookings") list(): Booking[];
 
+  /** Reads booking details without changing the booking. The guest code is never returned. */
+  @get
+  @route("cancellation")
+  @OpenAPI.operationId("getBookingForCancellation")
+  getForCancellation(@header("x-cancellation-code") cancellationCode?: string):
+    | Booking
+    | {
+        @statusCode statusCode: 404;
+        @body body: InvalidCancellationCodeError;
+      };
+
   /** Books a free slot; no overlap with any booking of any event type. */
   @post
   @OpenAPI.operationId("createBooking")
   create(@body booking: BookingRequest):
     | {
         @statusCode statusCode: 201;
-        @body body: Booking;
+        @body body: BookingCreated;
       }
     | {
         @statusCode statusCode: 400;

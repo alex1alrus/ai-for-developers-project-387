@@ -22,6 +22,7 @@ test('guest books an event type the owner created, and the owner sees the bookin
   })
 
   let slotTime = ''
+  let cancellationUrl = ''
   await test.step('guest books the first free slot', async () => {
     await page.goto('/book')
     await expect(page.getByRole('heading', { name: 'Каталог типов встреч' })).toBeVisible()
@@ -42,6 +43,30 @@ test('guest books an event type the owner created, and the owner sees the bookin
     await expect(page.getByRole('heading', { name: 'Вы записаны' })).toBeVisible()
     await expect(page.getByText(title)).toBeVisible()
     await expect(page.getByText(guestEmail)).toBeVisible()
+    const cancellationLink = page.getByRole('link', { name: 'Ссылка для отмены записи' })
+    await expect(cancellationLink).toBeVisible()
+    cancellationUrl = (await cancellationLink.getAttribute('href')) ?? ''
+    expect(cancellationUrl).toMatch(/^\/cancel#/)
+  })
+
+  await test.step('opening and reloading the secret link shows active details without modifying the booking', async () => {
+    const mutations: string[] = []
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname.startsWith('/api/') && !['GET', 'HEAD'].includes(request.method())) {
+        mutations.push(request.method())
+      }
+    })
+    await page.goto(cancellationUrl)
+    for (let visit = 0; visit < 2; visit++) {
+      await expect(page.getByRole('heading', { name: 'Детали записи' })).toBeVisible()
+      await expect(page.getByText(title, { exact: true })).toBeVisible()
+      await expect(page.getByText(guestEmail, { exact: true })).toBeVisible()
+      await expect(page.getByText('Действующая', { exact: true })).toBeVisible()
+      if (visit === 0) await page.reload()
+    }
+    await page.goto('/cancel#invalid')
+    await expect(page.getByText('Ссылка отмены недействительна', { exact: true })).toBeVisible()
+    expect(mutations).toEqual([])
   })
 
   await test.step('owner sees the booking', async () => {
@@ -49,5 +74,8 @@ test('guest books an event type the owner created, and the owner sees the bookin
     const booking = page.getByRole('listitem').filter({ hasText: title })
     await expect(booking).toContainText(`${guestName} · ${guestEmail}`)
     await expect(booking).toContainText(`, ${slotTime}–`)
+    await expect(booking).toContainText('Действующая')
+    await expect(page.getByRole('link', { name: 'Ссылка для отмены записи' })).toHaveCount(0)
+    await expect(booking).not.toContainText(cancellationUrl.split('#')[1])
   })
 })

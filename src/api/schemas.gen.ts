@@ -25,6 +25,7 @@ export const ApiErrorCodeSchema = {
     'EVENT_TYPE_NOT_FOUND',
     'EVENT_TYPE_EXISTS',
     'BOOKING_CONFLICT',
+    'INVALID_CANCELLATION_CODE',
     'NOT_FOUND'
   ]
 } as const;
@@ -37,7 +38,8 @@ export const BookingSchema = {
     'start',
     'guestName',
     'guestEmail',
-    'end'
+    'end',
+    'status'
   ],
   properties: {
     id: {
@@ -68,9 +70,72 @@ export const BookingSchema = {
       type: 'string',
       format: 'date-time',
       description: '`start` plus the event type\'s duration.'
+    },
+    status: {
+      $ref: '#/components/schemas/BookingStatus'
     }
   },
   description: 'An interval `[start, end)` a guest took for an event type.'
+} as const;
+
+export const BookingCreatedSchema = {
+  type: 'object',
+  required: [
+    'id',
+    'eventTypeId',
+    'start',
+    'guestName',
+    'guestEmail',
+    'end',
+    'status',
+    'cancellationCode',
+    'cancellationUrl'
+  ],
+  properties: {
+    id: {
+      type: 'string',
+      format: 'uuid'
+    },
+    eventTypeId: {
+      type: 'string'
+    },
+    start: {
+      type: 'string',
+      format: 'date-time',
+      description: 'Must be a start of a slot of the event type.'
+    },
+    guestName: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 100,
+      pattern: '^\\S(.*\\S)?$',
+      description: 'No surrounding whitespace, no line breaks.'
+    },
+    guestEmail: {
+      type: 'string',
+      maxLength: 254,
+      pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$'
+    },
+    end: {
+      type: 'string',
+      format: 'date-time',
+      description: '`start` plus the event type\'s duration.'
+    },
+    status: {
+      type: 'string',
+      enum: [
+        'active'
+      ]
+    },
+    cancellationCode: {
+      type: 'string'
+    },
+    cancellationUrl: {
+      type: 'string',
+      description: 'A same-origin link with the secret code in its fragment.'
+    }
+  },
+  description: 'Only returned to the guest when a booking is created.'
 } as const;
 
 export const BookingRequestSchema = {
@@ -104,6 +169,14 @@ export const BookingRequestSchema = {
     }
   },
   description: 'What a guest sends to book a slot.'
+} as const;
+
+export const BookingStatusSchema = {
+  type: 'string',
+  enum: [
+    'active',
+    'cancelled'
+  ]
 } as const;
 
 export const EventTypeSchema = {
@@ -142,6 +215,26 @@ export const EventTypeSchema = {
     }
   },
   description: 'A call format the owner offers.'
+} as const;
+
+export const InvalidCancellationCodeErrorSchema = {
+  type: 'object',
+  required: [
+    'message',
+    'code'
+  ],
+  properties: {
+    message: {
+      type: 'string',
+      description: 'English text for developers; the UI builds user text from `code`.'
+    },
+    code: {
+      type: 'string',
+      enum: [
+        'INVALID_CANCELLATION_CODE'
+      ]
+    }
+  }
 } as const;
 
 export const SlotSchema = {

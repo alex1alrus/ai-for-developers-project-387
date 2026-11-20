@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateBookingData, CreateBookingErrors, CreateBookingResponses, CreateEventTypeData, CreateEventTypeErrors, CreateEventTypeResponses, ListBookingsData, ListBookingsResponses, ListEventTypesData, ListEventTypesResponses, ListSlotsData, ListSlotsErrors, ListSlotsResponses } from './types.gen';
+import type { CreateBookingData, CreateBookingErrors, CreateBookingResponses, CreateEventTypeData, CreateEventTypeErrors, CreateEventTypeResponses, GetBookingForCancellationData, GetBookingForCancellationErrors, GetBookingForCancellationResponses, ListBookingsData, ListBookingsResponses, ListEventTypesData, ListEventTypesResponses, ListSlotsData, ListSlotsErrors, ListSlotsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
   /**
@@ -34,6 +34,11 @@ export const createBooking = <ThrowOnError extends boolean = false>(options: Opt
     ...options.headers
   }
 });
+
+/**
+ * Reads booking details without changing the booking. The guest code is never returned.
+ */
+export const getBookingForCancellation = <ThrowOnError extends boolean = false>(options?: Options<GetBookingForCancellationData, ThrowOnError>): RequestResult<GetBookingForCancellationResponses, GetBookingForCancellationErrors, ThrowOnError> => (options?.client ?? client).get<GetBookingForCancellationResponses, GetBookingForCancellationErrors, ThrowOnError>({ url: '/api/bookings/cancellation', ...options });
 
 /**
  * All event types sorted by title.

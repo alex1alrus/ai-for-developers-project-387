@@ -1,6 +1,7 @@
 import { Anchor, AppShell, Container, Group } from '@mantine/core'
 import { Link, Navigate, Route, Routes } from 'react-router'
 import BookingPage from './pages/BookingPage.tsx'
+import CancellationPage from './pages/CancellationPage.tsx'
 import CatalogPage from './pages/CatalogPage.tsx'
 import HomePage from './pages/HomePage.tsx'
 import OwnerArea from './pages/OwnerArea.tsx'
@@ -28,6 +29,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/book" element={<CatalogPage />} />
             <Route path="/book/:eventTypeId" element={<BookingPage />} />
+            <Route path="/cancel" element={<CancellationPage />} />
             <Route path="/owner" element={<OwnerArea />}>
               <Route index element={<Navigate to="bookings" replace />} />
               <Route path="bookings" element={<OwnerBookingsPage />} />

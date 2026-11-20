@@ -25,6 +25,7 @@ const booking = {
   end: '2026-11-18T11:00:00.000Z',
   guestName: 'Анна',
   guestEmail: 'anna@example.com',
+  status: 'active',
 }
 
 // Routes the SDK's fetch calls: /api/bookings vs /api/event-types.
@@ -65,8 +66,8 @@ test('lists upcoming bookings with event type title, local time and guest', asyn
   expect(screen.getByRole('status', { name: 'Загрузка' })).toBeTruthy()
   const items = await screen.findAllByRole('listitem')
   expect(items.map((item) => item.textContent)).toEqual([
-    'Час18 ноября, 13:00–14:00Анна · anna@example.com',
-    'Знакомство19 ноября, 09:30–10:00Борис · boris@example.com',
+    'Час18 ноября, 13:00–14:00Анна · anna@example.comДействующая',
+    'Знакомство19 ноября, 09:30–10:00Борис · boris@example.comДействующая',
   ])
 })
 

@@ -188,20 +188,30 @@ describe('POST /api/bookings', () => {
     await createEventType(app, hour)
   }
 
-  test('books a free slot: server sets id and end from the duration', async () => {
+  test('books a free slot and issues a secret cancellation link only to the guest', async () => {
     const app = buildApp()
     await addTypes(app)
 
     const res = await book(app, 'hour', '2026-11-18T10:00:00.000Z')
 
     expect(res.statusCode).toBe(201)
-    expect(res.json()).toEqual({
+    const { cancellationCode, cancellationUrl, ...booking } = res.json()
+    expect(booking).toEqual({
       id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
       eventTypeId: 'hour',
       start: '2026-11-18T10:00:00.000Z',
       end: '2026-11-18T11:00:00.000Z',
+      status: 'active',
       ...guest,
     })
+    expect(cancellationCode).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(cancellationUrl).toBe(`/cancel#${cancellationCode}`)
+    expect(res.headers['cache-control']).toBe('no-store')
+
+    const other = await book(app, 'intro', '2026-11-18T11:00:00.000Z')
+    expect(other.statusCode).toBe(201)
+    expect(other.json().cancellationCode).not.toBe(cancellationCode)
+    expect((await listBookings(app))[0]).toEqual(booking)
     await app.close()
   })
 
@@ -215,6 +225,35 @@ describe('POST /api/bookings', () => {
     expect(res.statusCode).toBe(409)
     expect(res.json()).toMatchObject({ code: 'BOOKING_CONFLICT', message: expect.any(String) })
     expect((await listBookings(app)).map((b: { guestName: string }) => b.guestName)).toEqual(['Анна'])
+    await app.close()
+  })
+
+  test('only the correct code opens booking details, and reading them leaves the slot occupied', async () => {
+    const app = buildApp()
+    await addTypes(app)
+    await book(app, 'hour', '2026-11-18T09:00:00.000Z', { guestName: 'Борис' })
+    const res = await book(app, 'hour', '2026-11-18T10:00:00.000Z')
+    const { cancellationCode, cancellationUrl: _url, ...booking } = res.json()
+
+    const details = (code?: string) => app.inject({
+      method: 'GET',
+      url: '/api/bookings/cancellation',
+      headers: code === undefined ? {} : { 'x-cancellation-code': code },
+    })
+    for (const code of [undefined, 'invalid', 'a'.repeat(43)]) {
+      const invalid = await details(code)
+      expect(invalid.statusCode).toBe(404)
+      expect(invalid.json()).toEqual({ code: 'INVALID_CANCELLATION_CODE', message: expect.any(String) })
+      expect(invalid.headers['cache-control']).toBe('no-store')
+    }
+    for (let read = 0; read < 2; read++) {
+      const found = await details(cancellationCode)
+      expect(found.statusCode).toBe(200)
+      expect(found.headers['cache-control']).toBe('no-store')
+      expect(found.json()).toEqual({ ...booking, status: 'active' })
+    }
+    expect(await listBookings(app)).toContainEqual({ ...booking, status: 'active' })
+    expect(await slotStarts(app, 'intro')).not.toContain('2026-11-18T10:30:00.000Z')
     await app.close()
   })
 
@@ -241,7 +280,8 @@ describe('POST /api/bookings', () => {
     expect(responses.map((res) => res.statusCode).toSorted()).toEqual([201, 409])
     const stored = await listBookings(app)
     expect(stored).toHaveLength(1)
-    expect(stored[0]).toEqual(responses.find((res) => res.statusCode === 201)?.json())
+    const { cancellationCode: _code, cancellationUrl: _url, ...created } = responses.find((res) => res.statusCode === 201)!.json()
+    expect(stored[0]).toEqual(created)
     const introStarts = await slotStarts(app, 'intro')
     const freeEdges = ['2026-11-18T10:00:00.000Z', '2026-11-18T11:00:00.000Z'].filter((s) => introStarts.includes(s))
     expect(freeEdges).toHaveLength(1) // one booking stored: two would block both edges
