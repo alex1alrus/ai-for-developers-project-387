@@ -1,9 +1,17 @@
 name: CI
 
+# PRs get `check` from `pull_request`. The release-please PR comes from GITHUB_TOKEN, so its
+# `push` starts nothing, but its `pull_request` runs start once a human approves them on the PR.
+# `push` to main checks the squash commit.
 on:
   push:
     branches:
-      - '**'
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
