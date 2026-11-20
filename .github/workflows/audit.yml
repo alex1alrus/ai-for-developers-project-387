@@ -19,7 +19,6 @@ permissions: {}
 
 env:
   APP_URL: ${{ vars.APP_URL }}
-  AUDIT_ARTIFACT: lighthouse-${{ github.run_id }}
 
 jobs:
   collect:
@@ -28,6 +27,10 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+    # One artifact per attempt: "Re-run all jobs" measures again and must not replace the
+    # report earlier issues link to. A re-run of `agent` alone keeps this output.
+    outputs:
+      artifact: lighthouse-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       # Expressions compare strings case-insensitively, so `if:` above also admits `Main`.
       # This shell check is exact; without a successful `collect` the agent job does not run.
@@ -144,11 +147,10 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.AUDIT_ARTIFACT }}
+          name: lighthouse-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/audit/
           retention-days: 30
           if-no-files-found: error
-          overwrite: true
 
   agent:
     needs: collect
@@ -165,7 +167,7 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          name: ${{ env.AUDIT_ARTIFACT }}
+          name: ${{ needs.collect.outputs.artifact }}
           path: ${{ runner.temp }}/audit
 
       - uses: anomalyco/opencode/github@latest
@@ -189,7 +191,7 @@ jobs:
             APP_URL: ${{ env.APP_URL }}
             SHA main: ${{ github.sha }}
             Прогон: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            Артефакт: ${{ env.AUDIT_ARTIFACT }}
+            Артефакт: ${{ needs.collect.outputs.artifact }}
 
             ID этого прогона: ${{ github.run_id }} (ID прогонов GitHub только растут).
             Маркер прогона `<!-- audit-run: ${{ github.run_id }} -->` ставь в каждый свой
@@ -198,7 +200,7 @@ jobs:
             телах и комментариях от `github-actions[bot]`, а не по ссылкам на прогоны.
 
             1. Журнал. Получи все issue с меткой `audit-log`, открытые и закрытые
-               (`gh issue list --label audit-log --state all`), и их комментарии.
+               (`gh issue list --label audit-log --state all --limit 1000`), и их комментарии.
                Если комментарий с маркером этого прогона уже есть (Re-run), используй его
                и его прямую ссылку, даже если журнал закрыт. Только если такого нет, возьми
                открытый журнал или, если его нет, создай issue «Журнал аудита Lighthouse»
@@ -234,7 +236,8 @@ jobs:
                `fetched_at`, ссылку на прогон, имя артефакта, прямую ссылку на комментарий
                журнала, маркер `<!-- audit-key: <key> -->` и маркер прогона.
                Если есть только закрытые дубли, проблема вернулась, только если оба условия
-               верны: `fetched_at` из сводки позже самого позднего `closed_at` среди них, и
+               верны: `fetched_at` из сводки не раньше самого позднего `closed_at` среди них
+               (при совпадении до секунды отметь в журнале «время совпало до секунды»), и
                ни в одном из них нет маркера этого прогона. Тогда укажи, что проблема
                вернулась, сошлись на закрытый issue и на закрывший его PR, если он найден
                в истории issue. Иначе это прежнее измерение: issue не создавай, в журнале
