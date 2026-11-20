@@ -50,6 +50,16 @@ describe('SPA fallback', () => {
     await app.close()
   })
 
+  test('an existing robots.txt is served as the file', async () => {
+    writeFileSync(join(webRoot, 'robots.txt'), 'User-agent: *\nAllow: /\n')
+    const app = buildApp({ webRoot })
+    const res = await app.inject({ method: 'GET', url: '/robots.txt' })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toBe('User-agent: *\nAllow: /\n')
+    await app.close()
+  })
+
   test('GET of a page path with a query returns index.html', async () => {
     const app = buildApp({ webRoot })
     const res = await app.inject({ method: 'GET', url: '/cancel?token=a.b' })
