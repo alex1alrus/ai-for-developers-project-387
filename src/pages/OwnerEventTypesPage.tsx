@@ -78,7 +78,7 @@ export default function OwnerEventTypesPage() {
       )}
 
       <Title order={2}>Новый тип встречи</Title>
-      {submission.kind === 'created' && <Alert color="green" title="Тип встречи создан" styles={{ title: { color: 'var(--mantine-color-text)' } }} />}
+      {submission.kind === 'created' && <Alert color="green" title="Тип встречи создан" />}
       {submission.kind === 'failed' && <Alert color="red" title={submission.message} />}
       <form onSubmit={submit} noValidate>
         <Stack>

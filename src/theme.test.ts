@@ -17,3 +17,13 @@ test('primary, dimmed and error text reach WCAG AA (4.5:1) on white', () => {
   expect(contrast(light['--mantine-color-dimmed'], '#ffffff')).toBeGreaterThanOrEqual(4.5)
   expect(contrast(light['--mantine-color-error'], '#ffffff')).toBeGreaterThanOrEqual(4.5)
 })
+
+test('light variant text reaches WCAG AA on its background and on hover in every palette', () => {
+  const merged = mergeMantineTheme(DEFAULT_THEME, theme)
+  const { light } = cssVariablesResolver(merged)
+  for (const [name, shades] of Object.entries(merged.colors)) {
+    const text = light[`--mantine-color-${name}-light-color`]
+    expect(contrast(text, shades[1]), name).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(text, shades[2]), name).toBeGreaterThanOrEqual(4.5)
+  }
+})
