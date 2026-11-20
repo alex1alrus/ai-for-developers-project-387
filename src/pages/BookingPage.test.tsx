@@ -176,6 +176,9 @@ describe('booking a slot', () => {
     ...free[0],
     guestName: 'Анна',
     guestEmail: 'anna@example.com',
+    status: 'active',
+    cancellationCode: 'guest-code',
+    cancellationUrl: '/cancel#guest-code',
   }
 
   test('sends trimmed fields and replaces the form with a confirmation', async () => {

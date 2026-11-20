@@ -9,7 +9,7 @@ paths:
   /api/bookings:
     get:
       operationId: listBookings
-      description: Upcoming bookings (`end > now`, ongoing included) of all event types sorted by start.
+      description: Active and cancelled upcoming bookings (`end > now`, ongoing included) of all event types sorted by start.
       parameters: []
       responses:
         '200':
@@ -24,7 +24,7 @@ paths:
         - Bookings
     post:
       operationId: createBooking
-      description: Books a free slot; no overlap with any booking of any event type.
+      description: Books a free slot; no overlap with an active booking of any event type.
       parameters: []
       responses:
         '201':
@@ -32,7 +32,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Booking'
+                $ref: '#/components/schemas/BookingCreated'
         '400':
           description: The server could not understand the request due to invalid syntax.
           content:
@@ -59,6 +59,73 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/BookingRequest'
+  /api/bookings/cancellation:
+    get:
+      operationId: getBookingForCancellation
+      description: Reads booking details without changing the booking. The cancellation code is never returned.
+      parameters:
+        - name: x-cancellation-code
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvalidCancellationCodeError'
+      tags:
+        - Bookings
+    post:
+      operationId: cancelBooking
+      description: |-
+        Cancels an active booking before it starts. The booking is retained and no longer occupies its interval.
+        Checks the cancellation code, then the booking status, then the start time.
+        An omitted cancellation code is a 400 validation error; an empty or unknown cancellation code is a 404.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingCancelled'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvalidCancellationCodeError'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/BookingAlreadyCancelledError'
+                  - $ref: '#/components/schemas/BookingAlreadyStartedError'
+      tags:
+        - Bookings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancellationRequest'
   /api/event-types:
     get:
       operationId: listEventTypes
@@ -158,6 +225,9 @@ components:
         - EVENT_TYPE_NOT_FOUND
         - EVENT_TYPE_EXISTS
         - BOOKING_CONFLICT
+        - INVALID_CANCELLATION_CODE
+        - BOOKING_ALREADY_CANCELLED
+        - BOOKING_ALREADY_STARTED
         - NOT_FOUND
     Booking:
       type: object
@@ -168,6 +238,7 @@ components:
         - guestName
         - guestEmail
         - end
+        - status
       properties:
         id:
           type: string
@@ -192,7 +263,122 @@ components:
           type: string
           format: date-time
           description: "`start` plus the event type's duration."
+        status:
+          $ref: '#/components/schemas/BookingStatus'
       description: An interval `[start, end)` a guest took for an event type.
+    BookingAlreadyCancelledError:
+      type: object
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          description: English text for developers; the UI builds user text from `code`.
+        code:
+          type: string
+          enum:
+            - BOOKING_ALREADY_CANCELLED
+      description: The booking was already cancelled; this takes precedence over its start time.
+    BookingAlreadyStartedError:
+      type: object
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          description: English text for developers; the UI builds user text from `code`.
+        code:
+          type: string
+          enum:
+            - BOOKING_ALREADY_STARTED
+      description: The active booking has reached its start time, including bookings that have already ended.
+    BookingCancelled:
+      type: object
+      required:
+        - id
+        - eventTypeId
+        - start
+        - guestName
+        - guestEmail
+        - end
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventTypeId:
+          type: string
+        start:
+          type: string
+          format: date-time
+          description: Must be a start of a slot of the event type.
+        guestName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: ^\S(.*\S)?$
+          description: No surrounding whitespace, no line breaks.
+        guestEmail:
+          type: string
+          maxLength: 254
+          pattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
+        end:
+          type: string
+          format: date-time
+          description: "`start` plus the event type's duration."
+        status:
+          type: string
+          enum:
+            - cancelled
+      description: The original booking after cancellation, without the cancellation code.
+    BookingCreated:
+      type: object
+      required:
+        - id
+        - eventTypeId
+        - start
+        - guestName
+        - guestEmail
+        - end
+        - status
+        - cancellationCode
+        - cancellationUrl
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventTypeId:
+          type: string
+        start:
+          type: string
+          format: date-time
+          description: Must be a start of a slot of the event type.
+        guestName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: ^\S(.*\S)?$
+          description: No surrounding whitespace, no line breaks.
+        guestEmail:
+          type: string
+          maxLength: 254
+          pattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
+        end:
+          type: string
+          format: date-time
+          description: "`start` plus the event type's duration."
+        status:
+          type: string
+          enum:
+            - active
+        cancellationCode:
+          type: string
+        cancellationUrl:
+          type: string
+          description: A same-origin link with the cancellation code in its fragment.
+      description: Only returned to the guest when a booking is created.
     BookingRequest:
       type: object
       required:
@@ -218,6 +404,19 @@ components:
           maxLength: 254
           pattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
       description: What a guest sends to book a slot.
+    BookingStatus:
+      type: string
+      enum:
+        - active
+        - cancelled
+    CancellationRequest:
+      type: object
+      required:
+        - cancellationCode
+      properties:
+        cancellationCode:
+          type: string
+      description: The cancellation code from the guest's cancellation link, sent in the request body.
     EventType:
       type: object
       required:
@@ -248,6 +447,20 @@ components:
           description: Multiple of 15, from 15 to 540.
           multipleOf: 15
       description: A call format the owner offers.
+    InvalidCancellationCodeError:
+      type: object
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          description: English text for developers; the UI builds user text from `code`.
+        code:
+          type: string
+          enum:
+            - INVALID_CANCELLATION_CODE
+      description: The cancellation code is missing from a details request, invalid, or unknown.
     Slot:
       type: object
       required:

@@ -12,7 +12,7 @@ export type ApiError = {
   message: string;
 };
 
-export type ApiErrorCode = 'VALIDATION_ERROR' | 'INVALID_START' | 'EVENT_TYPE_NOT_FOUND' | 'EVENT_TYPE_EXISTS' | 'BOOKING_CONFLICT' | 'NOT_FOUND';
+export type ApiErrorCode = 'VALIDATION_ERROR' | 'INVALID_START' | 'EVENT_TYPE_NOT_FOUND' | 'EVENT_TYPE_EXISTS' | 'BOOKING_CONFLICT' | 'INVALID_CANCELLATION_CODE' | 'BOOKING_ALREADY_CANCELLED' | 'BOOKING_ALREADY_STARTED' | 'NOT_FOUND';
 
 /**
  * An interval `[start, end)` a guest took for an event type.
@@ -33,6 +33,78 @@ export type Booking = {
    * `start` plus the event type's duration.
    */
   end: string;
+  status: BookingStatus;
+};
+
+/**
+ * The booking was already cancelled; this takes precedence over its start time.
+ */
+export type BookingAlreadyCancelledError = {
+  /**
+   * English text for developers; the UI builds user text from `code`.
+   */
+  message: string;
+  code: 'BOOKING_ALREADY_CANCELLED';
+};
+
+/**
+ * The active booking has reached its start time, including bookings that have already ended.
+ */
+export type BookingAlreadyStartedError = {
+  /**
+   * English text for developers; the UI builds user text from `code`.
+   */
+  message: string;
+  code: 'BOOKING_ALREADY_STARTED';
+};
+
+/**
+ * The original booking after cancellation, without the cancellation code.
+ */
+export type BookingCancelled = {
+  id: string;
+  eventTypeId: string;
+  /**
+   * Must be a start of a slot of the event type.
+   */
+  start: string;
+  /**
+   * No surrounding whitespace, no line breaks.
+   */
+  guestName: string;
+  guestEmail: string;
+  /**
+   * `start` plus the event type's duration.
+   */
+  end: string;
+  status: 'cancelled';
+};
+
+/**
+ * Only returned to the guest when a booking is created.
+ */
+export type BookingCreated = {
+  id: string;
+  eventTypeId: string;
+  /**
+   * Must be a start of a slot of the event type.
+   */
+  start: string;
+  /**
+   * No surrounding whitespace, no line breaks.
+   */
+  guestName: string;
+  guestEmail: string;
+  /**
+   * `start` plus the event type's duration.
+   */
+  end: string;
+  status: 'active';
+  cancellationCode: string;
+  /**
+   * A same-origin link with the cancellation code in its fragment.
+   */
+  cancellationUrl: string;
 };
 
 /**
@@ -49,6 +121,15 @@ export type BookingRequest = {
    */
   guestName: string;
   guestEmail: string;
+};
+
+export type BookingStatus = 'active' | 'cancelled';
+
+/**
+ * The cancellation code from the guest's cancellation link, sent in the request body.
+ */
+export type CancellationRequest = {
+  cancellationCode: string;
 };
 
 /**
@@ -68,6 +149,17 @@ export type EventType = {
    * Multiple of 15, from 15 to 540.
    */
   durationMinutes: number;
+};
+
+/**
+ * The cancellation code is missing from a details request, invalid, or unknown.
+ */
+export type InvalidCancellationCodeError = {
+  /**
+   * English text for developers; the UI builds user text from `code`.
+   */
+  message: string;
+  code: 'INVALID_CANCELLATION_CODE';
 };
 
 /**
@@ -122,10 +214,71 @@ export type CreateBookingResponses = {
   /**
    * The request has succeeded and a new resource has been created as a result.
    */
-  201: Booking;
+  201: BookingCreated;
 };
 
 export type CreateBookingResponse = CreateBookingResponses[keyof CreateBookingResponses];
+
+export type GetBookingForCancellationData = {
+  body?: never;
+  headers?: {
+    'x-cancellation-code'?: string;
+  };
+  path?: never;
+  query?: never;
+  url: '/api/bookings/cancellation';
+};
+
+export type GetBookingForCancellationErrors = {
+  /**
+   * The server cannot find the requested resource.
+   */
+  404: InvalidCancellationCodeError;
+};
+
+export type GetBookingForCancellationError = GetBookingForCancellationErrors[keyof GetBookingForCancellationErrors];
+
+export type GetBookingForCancellationResponses = {
+  /**
+   * The request has succeeded.
+   */
+  200: Booking;
+};
+
+export type GetBookingForCancellationResponse = GetBookingForCancellationResponses[keyof GetBookingForCancellationResponses];
+
+export type CancelBookingData = {
+  body: CancellationRequest;
+  path?: never;
+  query?: never;
+  url: '/api/bookings/cancellation';
+};
+
+export type CancelBookingErrors = {
+  /**
+   * The server could not understand the request due to invalid syntax.
+   */
+  400: ApiError;
+  /**
+   * The server cannot find the requested resource.
+   */
+  404: InvalidCancellationCodeError;
+  /**
+   * The request conflicts with the current state of the server.
+   */
+  409: BookingAlreadyCancelledError | BookingAlreadyStartedError;
+};
+
+export type CancelBookingError = CancelBookingErrors[keyof CancelBookingErrors];
+
+export type CancelBookingResponses = {
+  /**
+   * The request has succeeded.
+   */
+  200: BookingCancelled;
+};
+
+export type CancelBookingResponse = CancelBookingResponses[keyof CancelBookingResponses];
 
 export type ListEventTypesData = {
   body?: never;

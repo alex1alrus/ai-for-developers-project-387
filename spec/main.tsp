@@ -53,6 +53,11 @@ model BookingRequest {
   guestEmail: string;
 }
 
+union BookingStatus {
+  "active",
+  "cancelled",
+}
+
 /** An interval `[start, end)` a guest took for an event type. */
 model Booking {
   @format("uuid") id: string;
@@ -60,6 +65,28 @@ model Booking {
 
   /** `start` plus the event type's duration. */
   end: utcDateTime;
+  status: BookingStatus;
+}
+
+/** Only returned to the guest when a booking is created. */
+model BookingCreated {
+  ...OmitProperties<Booking, "status">;
+  status: "active";
+  cancellationCode: string;
+
+  /** A same-origin link with the cancellation code in its fragment. */
+  cancellationUrl: string;
+}
+
+/** The cancellation code from the guest's cancellation link, sent in the request body. */
+model CancellationRequest {
+  cancellationCode: string;
+}
+
+/** The original booking after cancellation, without the cancellation code. */
+model BookingCancelled {
+  ...OmitProperties<Booking, "status">;
+  status: "cancelled";
 }
 
 union ApiErrorCode {
@@ -68,6 +95,9 @@ union ApiErrorCode {
   "EVENT_TYPE_NOT_FOUND",
   "EVENT_TYPE_EXISTS",
   "BOOKING_CONFLICT",
+  "INVALID_CANCELLATION_CODE",
+  "BOOKING_ALREADY_CANCELLED",
+  "BOOKING_ALREADY_STARTED",
 
   // Unknown path under `/api`, or a non-GET request outside it.
   "NOT_FOUND",
@@ -79,6 +109,27 @@ model ApiError {
 
   /** English text for developers; the UI builds user text from `code`. */
   message: string;
+}
+
+/** The cancellation code is missing from a details request, invalid, or unknown. */
+@error
+model InvalidCancellationCodeError {
+  ...OmitProperties<ApiError, "code">;
+  code: "INVALID_CANCELLATION_CODE";
+}
+
+/** The booking was already cancelled; this takes precedence over its start time. */
+@error
+model BookingAlreadyCancelledError {
+  ...OmitProperties<ApiError, "code">;
+  code: "BOOKING_ALREADY_CANCELLED";
+}
+
+/** The active booking has reached its start time, including bookings that have already ended. */
+@error
+model BookingAlreadyStartedError {
+  ...OmitProperties<ApiError, "code">;
+  code: "BOOKING_ALREADY_STARTED";
 }
 
 @route("/api/event-types")
@@ -124,16 +175,50 @@ interface EventTypes {
 @route("/api/bookings")
 @tag("Bookings")
 interface Bookings {
-  /** Upcoming bookings (`end > now`, ongoing included) of all event types sorted by start. */
+  /** Active and cancelled upcoming bookings (`end > now`, ongoing included) of all event types sorted by start. */
   @get @OpenAPI.operationId("listBookings") list(): Booking[];
 
-  /** Books a free slot; no overlap with any booking of any event type. */
+  /** Reads booking details without changing the booking. The cancellation code is never returned. */
+  @get
+  @route("cancellation")
+  @OpenAPI.operationId("getBookingForCancellation")
+  getForCancellation(@header("x-cancellation-code") cancellationCode?: string):
+    | Booking
+    | {
+        @statusCode statusCode: 404;
+        @body body: InvalidCancellationCodeError;
+      };
+
+  /**
+   * Cancels an active booking before it starts. The booking is retained and no longer occupies its interval.
+   * Checks the cancellation code, then the booking status, then the start time.
+   * An omitted cancellation code is a 400 validation error; an empty or unknown cancellation code is a 404.
+   */
+  @post
+  @route("cancellation")
+  @OpenAPI.operationId("cancelBooking")
+  cancel(@body request: CancellationRequest):
+    | BookingCancelled
+    | {
+        @statusCode statusCode: 400;
+        @body body: ApiError;
+      }
+    | {
+        @statusCode statusCode: 404;
+        @body body: InvalidCancellationCodeError;
+      }
+    | {
+        @statusCode statusCode: 409;
+        @body body: BookingAlreadyCancelledError | BookingAlreadyStartedError;
+      };
+
+  /** Books a free slot; no overlap with an active booking of any event type. */
   @post
   @OpenAPI.operationId("createBooking")
   create(@body booking: BookingRequest):
     | {
         @statusCode statusCode: 201;
-        @body body: Booking;
+        @body body: BookingCreated;
       }
     | {
         @statusCode statusCode: 400;

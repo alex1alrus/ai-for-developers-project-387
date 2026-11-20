@@ -1,7 +1,7 @@
 import { Alert, Stack, Text, Title } from '@mantine/core'
 import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router'
-import { type Booking, createBooking, listEventTypes, listSlots, type Slot } from '../api'
+import { type BookingCreated, createBooking, listEventTypes, listSlots, type Slot } from '../api'
 import { BookingRequestSchema } from '../api/schemas.gen.ts'
 import { errorCode, submitFailureMessage } from '../apiError.ts'
 import { localDate, WINDOW_DAYS, windowDates } from '../bookingWindow.ts'
@@ -44,7 +44,7 @@ export default function BookingPage() {
   const [guest, setGuest] = useState(emptyGuest)
   const [errors, setErrors] = useState<GuestErrors>({})
   const [submission, setSubmission] = useState<Submission>({ kind: 'idle' })
-  const [booked, setBooked] = useState<Booking>()
+  const [booked, setBooked] = useState<BookingCreated>()
 
   const loaded = state.status === 'loaded' ? state.data : undefined
   const eventType = goneOnSubmit ? undefined : loaded?.eventType
