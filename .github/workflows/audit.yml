@@ -100,7 +100,10 @@ jobs:
             $report[0] as $lhr |
             ["performance", "accessibility", "best-practices", "seo"] as $categories |
             {
-              $app_url, $fetched_at, $status,
+              $app_url, $status,
+              # Measurement time from the Lighthouse report (to the second, like `closedAt`); the
+              # pre-warm-up time only when there is no report.
+              fetched_at: (($lhr.fetchTime // $fetched_at) | sub("\\.[0-9]+Z$"; "Z")),
               lighthouse_version: (if $lighthouse_version == "" then null else $lighthouse_version end),
               scores: ([$categories[] as $category |
                 {key: $category, value: $lhr.categories[$category].score}] | from_entries),
