@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/alex1alrus/ai-for-developers-project-387/compare/v1.2.0...v1.3.0) (2026-11-20)
+
+
+### Features
+
+* cancel a booking by secret link ([#8](https://github.com/alex1alrus/ai-for-developers-project-387/issues/8)) ([#28](https://github.com/alex1alrus/ai-for-developers-project-387/issues/28)) ([bf8d853](https://github.com/alex1alrus/ai-for-developers-project-387/commit/bf8d8532e5391941829ecc0f451e300ad83a145b))
+
 ## [1.2.0](https://github.com/alex1alrus/ai-for-developers-project-386/compare/v1.1.0...v1.2.0) (2026-11-18)
 
 
