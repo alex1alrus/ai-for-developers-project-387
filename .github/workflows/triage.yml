@@ -16,9 +16,10 @@ jobs:
       # Share the group with opencode.yml so manual and automatic triage do not overlap.
       group: opencode-${{ github.event.issue.number }}
       cancel-in-progress: false
+    # GITHUB_TOKEN instead of the opencode-agent App token (#22): with `contents: read`
+    # the agent cannot push, so "labels and comments only" no longer rests on the prompt.
     permissions:
       contents: read
-      id-token: write
       issues: write
       pull-requests: read
     steps:
@@ -31,8 +32,13 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          # Edits are denied to keep the tree clean; the hard limit is the token above (no push).
+          # The model is declared so a fresh runner without the models.dev cache still finds it.
+          OPENCODE_CONFIG_CONTENT: '{"provider":{"opencode":{"models":{"gpt-6.2-sol":{"name":"GPT 6.2 Sol"}}}},"permission":{"edit":"deny"}}'
         with:
           model: opencode/gpt-6.2-sol
+          use_github_token: true
           share: false
           prompt: |
             Выполни первичный триаж только что открытого issue #${{ github.event.issue.number }}
