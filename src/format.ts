@@ -5,9 +5,12 @@ export const dayMonth = new Intl.DateTimeFormat('ru', { day: 'numeric', month: '
 /** «ср, 18 нояб.» */
 export const weekdayDay = new Intl.DateTimeFormat('ru', { weekday: 'short', day: 'numeric', month: 'short' })
 
-/** «18 ноября, 13:00–14:00» */
+/** «18 ноября, 13:00–14:00» or «21 ноября, 23:30 – 22 ноября, 00:30». */
 export function bookingInterval(start: Date, end: Date) {
-  return `${dayMonth.format(start)}, ${time.format(start)}–${time.format(end)}`
+  const from = `${dayMonth.format(start)}, ${time.format(start)}`
+  const endTime = time.format(end)
+  if (start.toDateString() === end.toDateString()) return `${from}–${endTime}`
+  return `${from} – ${dayMonth.format(end)}, ${endTime}`
 }
 
 /** «Europe/Moscow, GMT+3»: the browser's time zone and its offset at `date`. */
