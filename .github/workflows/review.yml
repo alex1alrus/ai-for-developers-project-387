@@ -143,8 +143,10 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENCODE_CONFIG: ${{ github.workspace }}/opencode.json
           # Base settings are loaded above; these mandatory job restrictions apply even on the first PR.
+          # The model is declared explicitly: when the models.dev fetch fails, the CLI falls back to its
+          # bundled list, which lacks gpt-6.2-sol ("Model not found"), and the review fails at random.
           OPENCODE_CONFIG_CONTENT: >-
-            {"permission":{"*":"deny","read":{"*":"allow","*.env":"deny","*.env.*":"deny",".git/*":"deny"},"glob":"allow","grep":"allow","edit":"deny","bash":"deny","external_directory":"deny"}}
+            {"provider":{"opencode":{"models":{"gpt-6.2-sol":{"name":"GPT 6.2 Sol"}}}},"permission":{"*":"deny","read":{"*":"allow","*.env":"deny","*.env.*":"deny",".git/*":"deny"},"glob":"allow","grep":"allow","edit":"deny","bash":"deny","external_directory":"deny"}}
         run: |
           criteria=REVIEW.md
           if [[ ! -f "$criteria" ]]; then
