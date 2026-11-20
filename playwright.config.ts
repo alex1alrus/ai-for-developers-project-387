@@ -7,7 +7,11 @@ export default defineConfig({
   testMatch: '*.e2e.ts', // not *.test.ts, so Vitest never picks these files up
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? 'github' : 'list',
-  use: { baseURL: 'http://127.0.0.1:3100', trace: 'retain-on-failure' },
+  use: {
+    baseURL: 'http://127.0.0.1:3100',
+    trace: 'retain-on-failure',
+    screenshot: process.env.PLAYWRIGHT_SCREENSHOTS === '1' ? 'on' : 'off',
+  },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     command: 'npm run build && npm start',

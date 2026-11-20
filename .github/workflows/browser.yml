@@ -1,0 +1,55 @@
+name: PR browser check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: pr-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Record and verify checkout SHA
+        id: checkout-sha
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/browser-evidence"
+          git rev-parse HEAD | tee "$RUNNER_TEMP/browser-evidence/head-sha.txt"
+          test "$(<"$RUNNER_TEMP/browser-evidence/head-sha.txt")" = "$EXPECTED_SHA"
+
+      - uses: jdx/mise-action@v5
+      - run: mise exec -- npx playwright install --with-deps chromium
+      - name: Run Playwright against the PR head
+        id: e2e
+        env:
+          PLAYWRIGHT_SCREENSHOTS: '1'
+        run: mise exec -- npx playwright test --trace on --output "$RUNNER_TEMP/browser-evidence/playwright"
+
+      - name: Record result
+        if: ${{ !cancelled() && steps.checkout-sha.outcome == 'success' }}
+        env:
+          E2E_OUTCOME: ${{ steps.e2e.outcome }}
+        run: |
+          printf 'Playwright: %s\n' "${E2E_OUTCOME:-skipped}" | tee "$RUNNER_TEMP/browser-evidence/result.txt"
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && steps.checkout-sha.outcome == 'success' }}
+        with:
+          name: browser-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/browser-evidence
+          if-no-files-found: error
+          overwrite: true

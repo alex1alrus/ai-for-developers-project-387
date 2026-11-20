@@ -38,6 +38,7 @@ To change the API: edit `spec/main.tsp`, run `mise run gen`, then update the cod
 
 - Commits follow Conventional Commits: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`, `ci:`.
 - An implementation commit references the ticket it closes in the subject: `feat: book a free slot (#19)`.
+- Fill in every section of `.github/pull_request_template.md` when opening a PR.
 - Server code must use erasable TypeScript only (no enums, namespaces, parameter properties) and import local files with the `.ts` extension.
 - `mise run check` must pass before commit.
 
