@@ -164,11 +164,21 @@ scripts/smoke.sh http://localhost:8080                   # сценарий го
 - **Права:** стандартная авторизация OpenCode. `contents: read` и `id-token: write`: Actions обменивает OIDC-токен на токен GitHub App `opencode-agent`, и агент комментирует и пушит правами приложения. У checkout `persist-credentials: false`.
 - **Трекер:** задачи репозитория — GitHub Issues `alex1alrus/ai-for-developers-project-387`. Агент читает issue через `gh issue view <номер>`; правила работы с трекером — `docs/agents/issue-tracker.md`, общие правила — `AGENTS.md`. Спецификация и решения первого проекта читаются через `gh issue view <номер> -R alex1alrus/ai-for-developers-project-386`, новые задачи туда не пишутся.
 - **Отличие от стандартной настройки:** добавлены `issues: write`, `pull-requests: read` и `GH_TOKEN: ${{ github.token }}`. `opencode github run` не передаёт токен приложения в shell агента, поэтому скиллы работают с трекером через `gh`: triage ставит метки и комментирует, to-spec и to-tickets создают issue. Эти действия видны от `github-actions[bot]`. Код и PR этот токен только читает; коммиты, PR и итоговый ответ агента идут через приложение `opencode-agent`.
-- **Ограничения:** `timeout-minutes: 30`. `concurrency` по номеру issue или PR: в одном обсуждении работает один прогон, следующий ждёт.
+- **Ограничения:** `concurrency` по номеру issue или PR: в одном обсуждении работает один агент. Для issue действует тайм-аут задания 30 минут.
 - **Скиллы на раннере:** проектные скиллы лежат в `.claude/skills/`, OpenCode читает этот путь сам: `ask-matt`, `code-review`, `codebase-design`, `diagnosing-bugs`, `domain-modeling`, `grill-me`, `grill-with-docs`, `grilling`, `handoff`, `implement`, `implement-spec`, `improve-codebase-architecture`, `pr`, `prototype`, `research`, `retro`, `setup-matt-pocock-skills`, `tdd`, `to-spec`, `to-tickets`, `triage`, `wayfinder`, `wizard`. Ещё доступен встроенный `customize-opencode`. Настройки трекера (`docs/agents/`) и правила (`AGENTS.md`) приходят с checkout.
 - **Проверки:** команда `mise run check` — проверка генерации (`gen:check`), линтер, типы, тесты, сборка и браузерный сценарий; тот же прогон в pre-commit хуке и в CI.
 - **Остановка:** Actions → прогон → Cancel workflow останавливает текущий запуск. Actions → opencode → Disable workflow отключает будущие. Ключ можно отозвать в консоли opencode.ai.
 - **Файлы воркфлоу агент не пушит:** у приложения `opencode-agent` нет права `workflows`, GitHub отклоняет push с изменениями в `.github/workflows/`. Такие правки агент готовит, а коммитит человек.
+
+#### Предел запусков на один PR
+
+После активации правила в [`opencode.yml`](.github/workflows/opencode.yml) у каждого PR будет бюджет из трёх попыток. Команды в обсуждении PR и на строках diff расходуют общий бюджет; отмена, тайм-аут и Re-run тоже считаются. Команды в обычных issue работают без этого ограничения.
+
+Перед запуском агента воркфлоу читает историю своих прогонов в GitHub Actions (`actions: read`). Он учитывает допущенные запросы по номеру PR в имени прогона и число попыток `run_attempt`. Комментарии, пропущенные фильтром, в счётчик не попадают. Учитываются прогоны с момента активации правила, пока они доступны в истории Actions.
+
+Когда бюджет исчерпан, модель не вызывается. Если запуск заблокирован или остановлен из-за ошибки либо тайм-аута (25 минут на вызов OpenCode), отдельное задание публикует причину, последний head SHA PR, ссылку на логи, число использованных попыток и статус «нужен человек». При отмене комментарий появится, если GitHub запустит задание отчёта.
+
+Администратор может изменить `PR_ATTEMPT_LIMIT` или условия допуска в `.github/workflows/opencode.yml`. У нового PR свой бюджет; новый коммит в том же PR его не сбрасывает.
 
 ### Автотриаж новых обращений (`triage.yml`)
 
