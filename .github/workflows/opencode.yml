@@ -24,8 +24,13 @@ env:
 
 jobs:
   opencode:
+    # In a PR the command must start the comment, so a mention in the text does not spend
+    # the budget; keep this branch in sync with run-name. Plain issues keep the old rule.
     if: >-
-      (startsWith(github.event.comment.body, '/oc') || startsWith(github.event.comment.body, '/opencode')) &&
+      ((github.event.pull_request.number || github.event.issue.pull_request) &&
+         (startsWith(github.event.comment.body, '/oc') || startsWith(github.event.comment.body, '/opencode')) ||
+       !(github.event.pull_request.number || github.event.issue.pull_request) &&
+         (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode'))) &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
       github.event.comment.user.type != 'Bot'
     runs-on: ubuntu-latest
