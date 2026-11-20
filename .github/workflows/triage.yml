@@ -16,8 +16,9 @@ jobs:
       # Share the group with opencode.yml so manual and automatic triage do not overlap.
       group: opencode-${{ github.event.issue.number }}
       cancel-in-progress: false
-    # GITHUB_TOKEN instead of the opencode-agent App token (#22): with `contents: read`
-    # the agent cannot push, so "labels and comments only" no longer rests on the prompt.
+    # GITHUB_TOKEN instead of the opencode-agent App token (#22): with `contents: read` and
+    # `pull-requests: read` the agent cannot push or open PRs. `issues: write` still allows
+    # closing or editing issues; keeping to labels and comments there rests on the prompt.
     permissions:
       contents: read
       issues: write
